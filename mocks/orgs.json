@@ -1,0 +1,18 @@
+{
+  "acme": {
+    "container-tracking": 100,
+    "sailing-schedule": 50,
+    "shipment-data": 20
+  },
+  "globex": {
+    "container-tracking": 1000,
+    "sailing-schedule": 1000,
+    "shipment-data": 1000
+  },
+  "tiny": {
+    "container-tracking": 1,
+    "sailing-schedule": 1,
+    "shipment-data": 5
+  },
+  "noquota": {}
+}

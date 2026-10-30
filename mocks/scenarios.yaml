@@ -1,0 +1,26 @@
+duplicate_request_rejected:
+  description: retry with same id after commit is a 409, usage not double-charged
+  steps:
+    - org: acme
+      request_id: a
+      path: /container_tracking
+      params: {container_id: X}
+      expect: {status: 200}
+    - org: acme
+      request_id: a
+      path: /container_tracking
+      params: {container_id: X}
+      expect: {status: 409, code: already_processed, usage: {container-tracking: 1}}
+
+batch_single_feature_charges_per_op:
+  steps:
+    - org: acme
+      request_id: b1
+      method: POST
+      path: /batch
+      body:
+        mode: all_or_nothing
+        operations:
+          - {feature: shipment-data, shipment_id: SHP-00001}
+          - {feature: shipment-data, shipment_id: SHP-00002}
+      expect: {status: 200, usage: {shipment-data: 2}}

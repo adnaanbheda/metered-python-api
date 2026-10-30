@@ -1,0 +1,51 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "dev",
+      "dependsOn": ["redis", "api"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "redis",
+      "type": "shell",
+      "command": "docker start quota-redis; docker logs -f --tail 20 quota-redis",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "group": "dev" }
+    },
+    {
+      "label": "api",
+      "type": "shell",
+      "command": "uv run uvicorn main:app --reload",
+      "options": { "env": { "PYTHONPATH": "src" } },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "group": "dev" }
+    },
+    {
+      "label": "seed",
+      "type": "shell",
+      "command": "uv run python scripts/seed.py seed",
+      "options": { "env": { "PYTHONPATH": "src" } },
+      "problemMatcher": [],
+      "presentation": { "panel": "shared", "clear": true }
+    },
+    {
+      "label": "seed: reset",
+      "type": "shell",
+      "command": "uv run python scripts/seed.py reset",
+      "options": { "env": { "PYTHONPATH": "src" } },
+      "problemMatcher": [],
+      "presentation": { "panel": "shared", "clear": true }
+    },
+    {
+      "label": "redis-cli",
+      "type": "shell",
+      "command": "docker exec -it quota-redis redis-cli",
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "focus": true }
+    }
+  ]
+}
