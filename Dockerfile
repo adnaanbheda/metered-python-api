@@ -27,11 +27,7 @@ RUN uv sync --frozen --no-install-project
 
 COPY tests ./tests
 # conftest points at 127.0.0.1:6380
-RUN ruff check --no-cache . \
-    && redis-server --port 6380 --save "" --appendonly no --daemonize yes \
-    && until redis-cli -p 6380 ping >/dev/null 2>&1; do sleep 0.1; done \
-    && pytest -q -p no:cacheprovider \
-    && touch /passed
+RUN ruff check --no-cache . && pytest && touch /passed
 
 
 FROM base
