@@ -7,9 +7,6 @@ import yaml
 from mock_data import MOCKS
 from store import QuotaStore, current_period
 
-SCENARIOS = yaml.safe_load((MOCKS / "scenarios.yaml").read_text())
-
-
 SCENARIOS_DIR = Path(__file__).parent / "scenarios"
 SCENARIO_RE = re.compile(
     r"^## (?P<name>\S+)\n(?P<prose>.*?)```yaml\n(?P<steps>.*?)```", re.S | re.M

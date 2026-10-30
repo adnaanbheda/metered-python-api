@@ -31,7 +31,7 @@ async def test_burst_across_replicas_charges_exactly_the_limit(client, redis_cli
 
 async def test_retry_on_another_replica_is_deduped(client, redis_client):
     headers = {"X-Org-Id": "acme", "X-Request-Id": "retry-1"}
-    params = {"container_id": "X"}
+    params = {"container_id": "MSCU1719583"}
 
     first = await client.get("/container_tracking", params=params, headers=headers)
     retries = [await client.get("/container_tracking", params=params, headers=headers) for _ in range(3)]
