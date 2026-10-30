@@ -1,0 +1,64 @@
+# Stage: 3 API replicas behind nginx, one Redis with AOF.
+#   docker compose up -d --build --wait     (seeds limits once the api is healthy)
+# Integration tests run this same file under project "quota-it" on other ports.
+
+services:
+  redis:
+    image: redis:8.4-alpine
+    command: redis-server --appendonly yes --maxmemory-policy noeviction
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6381}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  api:
+    build: .
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      replicas: 3
+    healthcheck:
+      # /openapi.json skips IdentityMiddleware, so no org header needed
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/openapi.json')"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "${STAGE_PORT:-8080}:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    # Open the front door only once limits exist, so no startup window of 403s.
+    depends_on:
+      api:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/openapi.json"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  # One-shot after the api is healthy: loads mocks/orgs.json limits, then exits.
+  seed:
+    build: .
+    command: ["python", "scripts/seed.py", "seed"]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  redis-data:
