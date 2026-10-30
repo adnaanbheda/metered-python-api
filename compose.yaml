@@ -1,4 +1,4 @@
-# Stage: 3 API replicas behind nginx, one Redis with AOF.
+# Stage: 8 API replicas behind nginx, one Redis with AOF.
 #   docker compose up -d --build --wait     (seeds limits once the api is healthy)
 # Integration tests run this same file under project "quota-it" on other ports.
 
@@ -24,7 +24,7 @@ services:
       redis:
         condition: service_healthy
     deploy:
-      replicas: 3
+      replicas: 8
     healthcheck:
       # /openapi.json skips IdentityMiddleware, so no org header needed
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/openapi.json')"]

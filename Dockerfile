@@ -21,7 +21,7 @@ COPY mocks ./mocks
 FROM base AS check
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends redis-server \
+    && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 RUN uv sync --frozen --no-install-project
 

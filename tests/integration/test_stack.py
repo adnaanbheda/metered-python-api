@@ -17,7 +17,7 @@ async def test_burst_across_replicas_charges_exactly_the_limit(client, redis_cli
 
     responses = await asyncio.gather(
         *(
-            client.get("/container_tracking", params={"container_id": "X"}, headers={"X-Org-Id": org})
+            client.get("/container_tracking", params={"container_id": "MSCU1719583"}, headers={"X-Org-Id": org})
             for _ in range(burst)
         )
     )
