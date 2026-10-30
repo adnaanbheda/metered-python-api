@@ -38,7 +38,7 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 2. Redis/MemCache
     a. Redis clear choice since we can script at the redis level for atommic checks
 3. Atomicity maintained at the DB level.
-4. Balance stored separate or same as Redis ?
+4. Balance stored separate or same as Redis ? (DEFERRED, see Future work 1)
     a. Postgres stores the organization's limit
 5. Redis cluster necessary if scale's required, bucket keys to nodes based on hashing
 
@@ -48,10 +48,10 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 1. Failed requests shouldn't count towards the quota
 2. Retries shouldn't count as double exhaustion of quota.
     a. What if the retry arrives while the first request is still in process? due to client side timeouts, slow vendors can make this problem more prominent
-3. Writing/Reading to/from postgres on every charge, performance problem since the target is <10ms
+3. Writing/Reading to/from postgres on every charge not applicable, performance problem since the target is <10ms (REJECTED: latency).
 4. Redis durability important in case of failures since redis going down means that the last state of usage is the source of truth, otherwise no quota! (CHOSEN)
     a. appendonly, appendfsync everysec, maxmemory-policy noeviction
-5. Recovery path if we use postgres + redis
+5. Recovery path if we use postgres + redis (deferred)
     a. if redis wiped, snapshots of usage logs give us the exact rebuild, but it can also be stale.
 
 6. Reserve then refund is redundant when 404 entries exist but behaviourally it makes sense since production environments will tend to have valid scenarios more often than not. Reserve/Refund is cheaper to always do due to Redis's fast memory storage.
@@ -98,12 +98,15 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 ## Appendix
 AI-assisted parts, how to run, raw benchmark data.
 
+Design and key decisions are mine, the following implementations were assisted by AI.
+
 The commit history is separated by chunks of code, v1 will mark usable code.
 
 1. AI assisted parts
     a. Reserve / Refund lua scripting code.
-    b. Seeding data, mock scenarios scaffolding code, i.e. orgs, features, limits.
-    c. Router that shows all the redis keys for each org
-    c. Infra scaffolding i.e. docker compose yaml
-    d. Swagger changes
-    e. README document with a quickstart added
+    b. Seeding data, mock scenarios scaffolding code, i.e. orgs, features, limits, manual-scenarios.
+    c. SHA256 fingerprinting to match valid retries.
+    d. Router that shows all the redis keys for each org
+    e. Infra scaffolding i.e. docker compose yaml
+    f. Swagger changes
+    g. README document with a quickstart added
