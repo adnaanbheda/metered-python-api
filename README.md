@@ -19,11 +19,14 @@ Seeded orgs ([mocks/orgs.json](mocks/orgs.json)): `acme`, `globex`, `tiny` (limi
 
 | Status | Meaning |
 |---|---|
-| 401 / 400 | `X-Org-Id` missing / invalid |
-| 403 | org has no quota for the feature |
+| 401 | `X-Org-Id` missing |
+| 400 | `X-Request-Id` over 128 chars |
+| 403 | no quota provisioned for the feature this period |
 | 429 | quota exhausted |
-| 409 | request ID already processed (retry) |
-| 422 | request ID reused with different params |
+| 409 | request ID still in progress, or already processed |
+| 422 | request ID reused with a different request |
+
+No `X-Request-Id` means one is generated, so that call can't be safely retried.
 
 ## Test
 
