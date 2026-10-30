@@ -103,6 +103,7 @@ The commit history is separated by chunks of code, v1 will mark usable code.
 1. AI assisted parts
     a. Reserve / Refund lua scripting code.
     b. Seeding data, mock scenarios scaffolding code, i.e. orgs, features, limits.
-    c.  router: that shows redis keys for each org
+    c. Router that shows all the redis keys for each org
     c. Infra scaffolding i.e. docker compose yaml
     d. Swagger changes
+    e. README document with a quickstart added
