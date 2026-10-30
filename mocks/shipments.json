@@ -1,0 +1,120 @@
+{
+  "SHP-00001": {
+    "shipment_id": "SHP-00001",
+    "shipper": "Polar Ridge Auto",
+    "consignee": "Ironleaf Textiles",
+    "origin": "USLAX",
+    "destination": "DEHAM",
+    "containers": [
+      "MSCU3668136"
+    ],
+    "status": "gate_out"
+  },
+  "SHP-00002": {
+    "shipment_id": "SHP-00002",
+    "shipper": "Sunmere Furniture",
+    "consignee": "Blue Harbor Foods",
+    "origin": "DEHAM",
+    "destination": "CNSHA",
+    "containers": [
+      "MSCU9261704",
+      "HLCU7231838",
+      "MSCU8164991"
+    ],
+    "status": "gate_in"
+  },
+  "SHP-00003": {
+    "shipment_id": "SHP-00003",
+    "shipper": "Ironleaf Textiles",
+    "consignee": "Sunmere Furniture",
+    "origin": "CNSHA",
+    "destination": "NLRTM",
+    "containers": [
+      "MAEU1130789"
+    ],
+    "status": "arrived"
+  },
+  "SHP-00004": {
+    "shipment_id": "SHP-00004",
+    "shipper": "Kestrel Electronics",
+    "consignee": "Blue Harbor Foods",
+    "origin": "SGSIN",
+    "destination": "NLRTM",
+    "containers": [
+      "MAEU5159230",
+      "CMAU1525206"
+    ],
+    "status": "arrived"
+  },
+  "SHP-00005": {
+    "shipment_id": "SHP-00005",
+    "shipper": "Blue Harbor Foods",
+    "consignee": "Sunmere Furniture",
+    "origin": "CNSHA",
+    "destination": "SGSIN",
+    "containers": [
+      "MAEU8153566",
+      "MAEU1714803"
+    ],
+    "status": "gate_out"
+  },
+  "SHP-00006": {
+    "shipment_id": "SHP-00006",
+    "shipper": "Blue Harbor Foods",
+    "consignee": "Kestrel Electronics",
+    "origin": "USLAX",
+    "destination": "INNSA",
+    "containers": [
+      "MAEU0109031",
+      "MAEU1130789"
+    ],
+    "status": "arrived"
+  },
+  "SHP-00007": {
+    "shipment_id": "SHP-00007",
+    "shipper": "Ironleaf Textiles",
+    "consignee": "Blue Harbor Foods",
+    "origin": "CNSHA",
+    "destination": "NLRTM",
+    "containers": [
+      "MAEU1130789"
+    ],
+    "status": "arrived"
+  },
+  "SHP-00008": {
+    "shipment_id": "SHP-00008",
+    "shipper": "Polar Ridge Auto",
+    "consignee": "Sunmere Furniture",
+    "origin": "AEJEA",
+    "destination": "DEHAM",
+    "containers": [
+      "MAEU1714803"
+    ],
+    "status": "departed"
+  },
+  "SHP-00009": {
+    "shipment_id": "SHP-00009",
+    "shipper": "Polar Ridge Auto",
+    "consignee": "Sunmere Furniture",
+    "origin": "INNSA",
+    "destination": "NLRTM",
+    "containers": [
+      "MSCU9580513",
+      "MAEU3842788",
+      "MSCU8164991"
+    ],
+    "status": "arrived"
+  },
+  "SHP-00010": {
+    "shipment_id": "SHP-00010",
+    "shipper": "Polar Ridge Auto",
+    "consignee": "Sunmere Furniture",
+    "origin": "SGSIN",
+    "destination": "NLRTM",
+    "containers": [
+      "MAEU5159230",
+      "HLCU4137722"
+    ],
+    "status": "arrived"
+  }
+}

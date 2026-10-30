@@ -1,0 +1,752 @@
+{
+  "MSCU1719583": {
+    "container_id": "MSCU1719583",
+    "carrier": "MSC",
+    "origin": "CNSHA",
+    "destination": "AEJEA",
+    "status": "loaded",
+    "events": [
+      {
+        "ts": "2026-10-10T10:00:00+00:00",
+        "event": "gate_out",
+        "port": "CNSHA"
+      },
+      {
+        "ts": "2026-10-11T09:00:00+00:00",
+        "event": "loaded",
+        "port": "CNSHA"
+      }
+    ]
+  },
+  "MSCU3668136": {
+    "container_id": "MSCU3668136",
+    "carrier": "MSC",
+    "origin": "USLAX",
+    "destination": "DEHAM",
+    "status": "gate_out",
+    "events": [
+      {
+        "ts": "2026-10-02T17:00:00+00:00",
+        "event": "gate_out",
+        "port": "USLAX"
+      }
+    ]
+  },
+  "MAEU0109031": {
+    "container_id": "MAEU0109031",
+    "carrier": "Maersk",
+    "origin": "USLAX",
+    "destination": "INNSA",
+    "status": "arrived",
+    "events": [
+      {
+        "ts": "2026-10-02T07:00:00+00:00",
+        "event": "gate_out",
+        "port": "USLAX"
+      },
+      {
+        "ts": "2026-10-04T18:00:00+00:00",
+        "event": "loaded",
+        "port": "USLAX"
+      },
+      {
+        "ts": "2026-10-06T04:00:00+00:00",
+        "event": "departed",
+        "port": "USLAX"
+      },
+      {
+        "ts": "2026-10-08T19:00:00+00:00",
+        "event": "transshipped",
+        "port": "AEJEA"
+      },
+      {
+        "ts": "2026-10-10T12:00:00+00:00",
+        "event": "arrived",
+        "port": "INNSA"
+      }
+    ]
+  },
+  "MAEU1714803": {
+    "container_id": "MAEU1714803",
+    "carrier": "Maersk",
+    "origin": "AEJEA",
+    "destination": "DEHAM",
+    "status": "departed",
+    "events": [
+      {
+        "ts": "2026-10-12T01:00:00+00:00",
+        "event": "gate_out",
+        "port": "AEJEA"
+      },
+      {
+        "ts": "2026-10-13T10:00:00+00:00",
+        "event": "loaded",
+        "port": "AEJEA"
+      },
+      {
+        "ts": "2026-10-15T11:00:00+00:00",
+        "event": "departed",
+        "port": "AEJEA"
+      }
+    ]
+  },
+  "MSCU9261704": {
+    "container_id": "MSCU9261704",
+    "carrier": "MSC",
+    "origin": "DEHAM",
+    "destination": "CNSHA",
+    "status": "gate_in",
+    "events": [
+      {
+        "ts": "2026-10-14T02:00:00+00:00",
+        "event": "gate_out",
+        "port": "DEHAM"
+      },
+      {
+        "ts": "2026-10-15T17:00:00+00:00",
+        "event": "loaded",
+        "port": "DEHAM"
+      },
+      {
+        "ts": "2026-10-16T04:00:00+00:00",
+        "event": "departed",
+        "port": "DEHAM"
+      },
+      {
+        "ts": "2026-10-18T20:00:00+00:00",
+        "event": "transshipped",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-19T17:00:00+00:00",
+        "event": "arrived",
+        "port": "CNSHA"
+      },
+      {
+        "ts": "2026-10-21T23:00:00+00:00",
+        "event": "discharged",
+        "port": "CNSHA"
+      },
+      {
+        "ts": "2026-10-22T15:00:00+00:00",
+        "event": "gate_in",
+        "port": "CNSHA"
+      }
+    ]
+  },
+  "CMAU1694522": {
+    "container_id": "CMAU1694522",
+    "carrier": "CMA CGM",
+    "origin": "INNSA",
+    "destination": "AEJEA",
+    "status": "gate_in",
+    "events": [
+      {
+        "ts": "2026-10-22T04:00:00+00:00",
+        "event": "gate_out",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-23T10:00:00+00:00",
+        "event": "loaded",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-24T00:00:00+00:00",
+        "event": "departed",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-24T11:00:00+00:00",
+        "event": "transshipped",
+        "port": "SGSIN"
+      },
+      {
+        "ts": "2026-10-26T06:00:00+00:00",
+        "event": "arrived",
+        "port": "AEJEA"
+      },
+      {
+        "ts": "2026-10-26T22:00:00+00:00",
+        "event": "discharged",
+        "port": "AEJEA"
+      },
+      {
+        "ts": "2026-10-28T09:00:00+00:00",
+        "event": "gate_in",
+        "port": "AEJEA"
+      }
+    ]
+  },
+  "HLCU8961380": {
+    "container_id": "HLCU8961380",
+    "carrier": "Hapag-Lloyd",
+    "origin": "NLRTM",
+    "destination": "DEHAM",
+    "status": "gate_in",
+    "events": [
+      {
+        "ts": "2026-10-23T04:00:00+00:00",
+        "event": "gate_out",
+        "port": "NLRTM"
+      },
+      {
+        "ts": "2026-10-24T06:00:00+00:00",
+        "event": "loaded",
+        "port": "NLRTM"
+      },
+      {
+        "ts": "2026-10-26T11:00:00+00:00",
+        "event": "departed",
+        "port": "NLRTM"
+      },
+      {
+        "ts": "2026-10-28T14:00:00+00:00",
+        "event": "transshipped",
+        "port": "SGSIN"
+      },
+      {
+        "ts": "2026-10-30T06:00:00+00:00",
+        "event": "arrived",
+        "port": "DEHAM"
+      },
+      {
+        "ts": "2026-10-30T21:00:00+00:00",
+        "event": "discharged",
+        "port": "DEHAM"
+      },
+      {
+        "ts": "2026-11-01T00:00:00+00:00",
+        "event": "gate_in",
+        "port": "DEHAM"
+      }
+    ]
+  },
+  "MAEU3842788": {
+    "container_id": "MAEU3842788",
+    "carrier": "Maersk",
+    "origin": "SGSIN",
+    "destination": "DEHAM",
+    "status": "departed",
+    "events": [
+      {
+        "ts": "2026-10-14T10:00:00+00:00",
+        "event": "gate_out",
+        "port": "SGSIN"
+      },
+      {
+        "ts": "2026-10-16T09:00:00+00:00",
+        "event": "loaded",
+        "port": "SGSIN"
+      },
+      {
+        "ts": "2026-10-16T22:00:00+00:00",
+        "event": "departed",
+        "port": "SGSIN"
+      }
+    ]
+  },
+  "MSCU3567281": {
+    "container_id": "MSCU3567281",
+    "carrier": "MSC",
+    "origin": "INNSA",
+    "destination": "NLRTM",
+    "status": "departed",
+    "events": [
+      {
+        "ts": "2026-10-13T14:00:00+00:00",
+        "event": "gate_out",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-14T23:00:00+00:00",
+        "event": "loaded",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-16T21:00:00+00:00",
+        "event": "departed",
+        "port": "INNSA"
+      }
+    ]
+  },
+  "HLCU4137722": {
+    "container_id": "HLCU4137722",
+    "carrier": "Hapag-Lloyd",
+    "origin": "DEHAM",
+    "destination": "AEJEA",
+    "status": "loaded",
+    "events": [
+      {
+        "ts": "2026-10-16T15:00:00+00:00",
+        "event": "gate_out",
+        "port": "DEHAM"
+      },
+      {
+        "ts": "2026-10-17T14:00:00+00:00",
+        "event": "loaded",
+        "port": "DEHAM"
+      }
+    ]
+  },
+  "CMAU1525206": {
+    "container_id": "CMAU1525206",
+    "carrier": "CMA CGM",
+    "origin": "AEJEA",
+    "destination": "USLAX",
+    "status": "arrived",
+    "events": [
+      {
+        "ts": "2026-10-16T09:00:00+00:00",
+        "event": "gate_out",
+        "port": "AEJEA"
+      },
+      {
+        "ts": "2026-10-18T13:00:00+00:00",
+        "event": "loaded",
+        "port": "AEJEA"
+      },
+      {
+        "ts": "2026-10-19T23:00:00+00:00",
+        "event": "departed",
+        "port": "AEJEA"
+      },
+      {
+        "ts": "2026-10-20T22:00:00+00:00",
+        "event": "transshipped",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-23T19:00:00+00:00",
+        "event": "arrived",
+        "port": "USLAX"
+      }
+    ]
+  },
+  "MSCU9281590": {
+    "container_id": "MSCU9281590",
+    "carrier": "MSC",
+    "origin": "INNSA",
+    "destination": "CNSHA",
+    "status": "discharged",
+    "events": [
+      {
+        "ts": "2026-10-06T02:00:00+00:00",
+        "event": "gate_out",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-08T14:00:00+00:00",
+        "event": "loaded",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-09T04:00:00+00:00",
+        "event": "departed",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-11T11:00:00+00:00",
+        "event": "transshipped",
+        "port": "USLAX"
+      },
+      {
+        "ts": "2026-10-14T04:00:00+00:00",
+        "event": "arrived",
+        "port": "CNSHA"
+      },
+      {
+        "ts": "2026-10-15T18:00:00+00:00",
+        "event": "discharged",
+        "port": "CNSHA"
+      }
+    ]
+  },
+  "MSCU0054447": {
+    "container_id": "MSCU0054447",
+    "carrier": "MSC",
+    "origin": "AEJEA",
+    "destination": "INNSA",
+    "status": "discharged",
+    "events": [
+      {
+        "ts": "2026-10-05T16:00:00+00:00",
+        "event": "gate_out",
+        "port": "AEJEA"
+      },
+      {
+        "ts": "2026-10-07T17:00:00+00:00",
+        "event": "loaded",
+        "port": "AEJEA"
+      },
+      {
+        "ts": "2026-10-08T13:00:00+00:00",
+        "event": "departed",
+        "port": "AEJEA"
+      },
+      {
+        "ts": "2026-10-10T08:00:00+00:00",
+        "event": "transshipped",
+        "port": "DEHAM"
+      },
+      {
+        "ts": "2026-10-11T10:00:00+00:00",
+        "event": "arrived",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-14T02:00:00+00:00",
+        "event": "discharged",
+        "port": "INNSA"
+      }
+    ]
+  },
+  "CMAU8517169": {
+    "container_id": "CMAU8517169",
+    "carrier": "CMA CGM",
+    "origin": "USLAX",
+    "destination": "SGSIN",
+    "status": "gate_out",
+    "events": [
+      {
+        "ts": "2026-10-18T20:00:00+00:00",
+        "event": "gate_out",
+        "port": "USLAX"
+      }
+    ]
+  },
+  "MAEU5159230": {
+    "container_id": "MAEU5159230",
+    "carrier": "Maersk",
+    "origin": "SGSIN",
+    "destination": "NLRTM",
+    "status": "arrived",
+    "events": [
+      {
+        "ts": "2026-10-06T06:00:00+00:00",
+        "event": "gate_out",
+        "port": "SGSIN"
+      },
+      {
+        "ts": "2026-10-08T05:00:00+00:00",
+        "event": "loaded",
+        "port": "SGSIN"
+      },
+      {
+        "ts": "2026-10-11T01:00:00+00:00",
+        "event": "departed",
+        "port": "SGSIN"
+      },
+      {
+        "ts": "2026-10-11T09:00:00+00:00",
+        "event": "transshipped",
+        "port": "CNSHA"
+      },
+      {
+        "ts": "2026-10-13T13:00:00+00:00",
+        "event": "arrived",
+        "port": "NLRTM"
+      }
+    ]
+  },
+  "MAEU8153566": {
+    "container_id": "MAEU8153566",
+    "carrier": "Maersk",
+    "origin": "CNSHA",
+    "destination": "SGSIN",
+    "status": "gate_out",
+    "events": [
+      {
+        "ts": "2026-10-19T16:00:00+00:00",
+        "event": "gate_out",
+        "port": "CNSHA"
+      }
+    ]
+  },
+  "MSCU4446912": {
+    "container_id": "MSCU4446912",
+    "carrier": "MSC",
+    "origin": "INNSA",
+    "destination": "USLAX",
+    "status": "loaded",
+    "events": [
+      {
+        "ts": "2026-10-07T18:00:00+00:00",
+        "event": "gate_out",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-08T21:00:00+00:00",
+        "event": "loaded",
+        "port": "INNSA"
+      }
+    ]
+  },
+  "HLCU4159166": {
+    "container_id": "HLCU4159166",
+    "carrier": "Hapag-Lloyd",
+    "origin": "SGSIN",
+    "destination": "USLAX",
+    "status": "discharged",
+    "events": [
+      {
+        "ts": "2026-10-08T21:00:00+00:00",
+        "event": "gate_out",
+        "port": "SGSIN"
+      },
+      {
+        "ts": "2026-10-11T06:00:00+00:00",
+        "event": "loaded",
+        "port": "SGSIN"
+      },
+      {
+        "ts": "2026-10-13T11:00:00+00:00",
+        "event": "departed",
+        "port": "SGSIN"
+      },
+      {
+        "ts": "2026-10-16T01:00:00+00:00",
+        "event": "transshipped",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-18T16:00:00+00:00",
+        "event": "arrived",
+        "port": "USLAX"
+      },
+      {
+        "ts": "2026-10-19T13:00:00+00:00",
+        "event": "discharged",
+        "port": "USLAX"
+      }
+    ]
+  },
+  "MAEU1130789": {
+    "container_id": "MAEU1130789",
+    "carrier": "Maersk",
+    "origin": "CNSHA",
+    "destination": "NLRTM",
+    "status": "arrived",
+    "events": [
+      {
+        "ts": "2026-10-02T11:00:00+00:00",
+        "event": "gate_out",
+        "port": "CNSHA"
+      },
+      {
+        "ts": "2026-10-03T21:00:00+00:00",
+        "event": "loaded",
+        "port": "CNSHA"
+      },
+      {
+        "ts": "2026-10-04T03:00:00+00:00",
+        "event": "departed",
+        "port": "CNSHA"
+      },
+      {
+        "ts": "2026-10-04T18:00:00+00:00",
+        "event": "transshipped",
+        "port": "SGSIN"
+      },
+      {
+        "ts": "2026-10-06T05:00:00+00:00",
+        "event": "arrived",
+        "port": "NLRTM"
+      }
+    ]
+  },
+  "MSCU9580513": {
+    "container_id": "MSCU9580513",
+    "carrier": "MSC",
+    "origin": "INNSA",
+    "destination": "NLRTM",
+    "status": "arrived",
+    "events": [
+      {
+        "ts": "2026-10-04T12:00:00+00:00",
+        "event": "gate_out",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-06T05:00:00+00:00",
+        "event": "loaded",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-09T01:00:00+00:00",
+        "event": "departed",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-10T10:00:00+00:00",
+        "event": "transshipped",
+        "port": "AEJEA"
+      },
+      {
+        "ts": "2026-10-11T08:00:00+00:00",
+        "event": "arrived",
+        "port": "NLRTM"
+      }
+    ]
+  },
+  "HLCU7231838": {
+    "container_id": "HLCU7231838",
+    "carrier": "Hapag-Lloyd",
+    "origin": "SGSIN",
+    "destination": "DEHAM",
+    "status": "loaded",
+    "events": [
+      {
+        "ts": "2026-10-14T18:00:00+00:00",
+        "event": "gate_out",
+        "port": "SGSIN"
+      },
+      {
+        "ts": "2026-10-15T12:00:00+00:00",
+        "event": "loaded",
+        "port": "SGSIN"
+      }
+    ]
+  },
+  "CMAU3191175": {
+    "container_id": "CMAU3191175",
+    "carrier": "CMA CGM",
+    "origin": "DEHAM",
+    "destination": "INNSA",
+    "status": "gate_in",
+    "events": [
+      {
+        "ts": "2026-10-15T12:00:00+00:00",
+        "event": "gate_out",
+        "port": "DEHAM"
+      },
+      {
+        "ts": "2026-10-16T06:00:00+00:00",
+        "event": "loaded",
+        "port": "DEHAM"
+      },
+      {
+        "ts": "2026-10-16T19:00:00+00:00",
+        "event": "departed",
+        "port": "DEHAM"
+      },
+      {
+        "ts": "2026-10-19T04:00:00+00:00",
+        "event": "transshipped",
+        "port": "NLRTM"
+      },
+      {
+        "ts": "2026-10-19T23:00:00+00:00",
+        "event": "arrived",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-21T12:00:00+00:00",
+        "event": "discharged",
+        "port": "INNSA"
+      },
+      {
+        "ts": "2026-10-22T18:00:00+00:00",
+        "event": "gate_in",
+        "port": "INNSA"
+      }
+    ]
+  },
+  "HLCU7434500": {
+    "container_id": "HLCU7434500",
+    "carrier": "Hapag-Lloyd",
+    "origin": "SGSIN",
+    "destination": "DEHAM",
+    "status": "departed",
+    "events": [
+      {
+        "ts": "2026-10-08T17:00:00+00:00",
+        "event": "gate_out",
+        "port": "SGSIN"
+      },
+      {
+        "ts": "2026-10-10T06:00:00+00:00",
+        "event": "loaded",
+        "port": "SGSIN"
+      },
+      {
+        "ts": "2026-10-10T21:00:00+00:00",
+        "event": "departed",
+        "port": "SGSIN"
+      }
+    ]
+  },
+  "MSCU6728339": {
+    "container_id": "MSCU6728339",
+    "carrier": "MSC",
+    "origin": "CNSHA",
+    "destination": "AEJEA",
+    "status": "gate_in",
+    "events": [
+      {
+        "ts": "2026-10-18T07:00:00+00:00",
+        "event": "gate_out",
+        "port": "CNSHA"
+      },
+      {
+        "ts": "2026-10-19T00:00:00+00:00",
+        "event": "loaded",
+        "port": "CNSHA"
+      },
+      {
+        "ts": "2026-10-20T12:00:00+00:00",
+        "event": "departed",
+        "port": "CNSHA"
+      },
+      {
+        "ts": "2026-10-21T15:00:00+00:00",
+        "event": "transshipped",
+        "port": "USLAX"
+      },
+      {
+        "ts": "2026-10-24T11:00:00+00:00",
+        "event": "arrived",
+        "port": "AEJEA"
+      },
+      {
+        "ts": "2026-10-27T06:00:00+00:00",
+        "event": "discharged",
+        "port": "AEJEA"
+      },
+      {
+        "ts": "2026-10-28T15:00:00+00:00",
+        "event": "gate_in",
+        "port": "AEJEA"
+      }
+    ]
+  },
+  "MSCU8164991": {
+    "container_id": "MSCU8164991",
+    "carrier": "MSC",
+    "origin": "SGSIN",
+    "destination": "DEHAM",
+    "status": "transshipped",
+    "events": [
+      {
+        "ts": "2026-10-02T15:00:00+00:00",
+        "event": "gate_out",
+        "port": "SGSIN"
+      },
+      {
+        "ts": "2026-10-05T07:00:00+00:00",
+        "event": "loaded",
+        "port": "SGSIN"
+      },
+      {
+        "ts": "2026-10-07T01:00:00+00:00",
+        "event": "departed",
+        "port": "SGSIN"
+      },
+      {
+        "ts": "2026-10-09T13:00:00+00:00",
+        "event": "transshipped",
+        "port": "INNSA"
+      }
+    ]
+  }
+}

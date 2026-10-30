@@ -1,0 +1,842 @@
+[
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD HORIZON",
+    "voyage": "901S",
+    "origin": "SGSIN",
+    "destination": "AEJEA",
+    "departure": "2026-10-02",
+    "arrival": "2026-10-20",
+    "transit_days": 18
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD HORIZON",
+    "voyage": "329E",
+    "origin": "USLAX",
+    "destination": "INNSA",
+    "departure": "2026-10-02",
+    "arrival": "2026-10-12",
+    "transit_days": 10
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA HORIZON",
+    "voyage": "286S",
+    "origin": "INNSA",
+    "destination": "CNSHA",
+    "departure": "2026-10-02",
+    "arrival": "2026-11-09",
+    "transit_days": 38
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA SOLSTICE",
+    "voyage": "588W",
+    "origin": "CNSHA",
+    "destination": "SGSIN",
+    "departure": "2026-10-04",
+    "arrival": "2026-10-14",
+    "transit_days": 10
+  },
+  {
+    "carrier": "MSC",
+    "vessel": "MSC HORIZON",
+    "voyage": "145E",
+    "origin": "SGSIN",
+    "destination": "CNSHA",
+    "departure": "2026-10-06",
+    "arrival": "2026-11-09",
+    "transit_days": 34
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK HORIZON",
+    "voyage": "222W",
+    "origin": "INNSA",
+    "destination": "USLAX",
+    "departure": "2026-10-08",
+    "arrival": "2026-10-27",
+    "transit_days": 19
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD HORIZON",
+    "voyage": "473E",
+    "origin": "SGSIN",
+    "destination": "DEHAM",
+    "departure": "2026-10-09",
+    "arrival": "2026-10-18",
+    "transit_days": 9
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK MERIDIAN",
+    "voyage": "159E",
+    "origin": "CNSHA",
+    "destination": "SGSIN",
+    "departure": "2026-10-13",
+    "arrival": "2026-11-07",
+    "transit_days": 25
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK ATLAS",
+    "voyage": "793W",
+    "origin": "NLRTM",
+    "destination": "AEJEA",
+    "departure": "2026-10-13",
+    "arrival": "2026-11-15",
+    "transit_days": 33
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA SOLSTICE",
+    "voyage": "600N",
+    "origin": "SGSIN",
+    "destination": "CNSHA",
+    "departure": "2026-10-14",
+    "arrival": "2026-11-06",
+    "transit_days": 23
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA AURORA",
+    "voyage": "462S",
+    "origin": "SGSIN",
+    "destination": "USLAX",
+    "departure": "2026-10-14",
+    "arrival": "2026-11-05",
+    "transit_days": 22
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK HORIZON",
+    "voyage": "841N",
+    "origin": "INNSA",
+    "destination": "USLAX",
+    "departure": "2026-10-14",
+    "arrival": "2026-11-20",
+    "transit_days": 37
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD ATLAS",
+    "voyage": "458N",
+    "origin": "SGSIN",
+    "destination": "INNSA",
+    "departure": "2026-10-15",
+    "arrival": "2026-11-03",
+    "transit_days": 19
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK MERIDIAN",
+    "voyage": "508N",
+    "origin": "SGSIN",
+    "destination": "INNSA",
+    "departure": "2026-10-15",
+    "arrival": "2026-10-23",
+    "transit_days": 8
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA MERIDIAN",
+    "voyage": "125E",
+    "origin": "DEHAM",
+    "destination": "CNSHA",
+    "departure": "2026-10-15",
+    "arrival": "2026-11-03",
+    "transit_days": 19
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA ATLAS",
+    "voyage": "234N",
+    "origin": "CNSHA",
+    "destination": "DEHAM",
+    "departure": "2026-10-16",
+    "arrival": "2026-11-08",
+    "transit_days": 23
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK ATLAS",
+    "voyage": "785E",
+    "origin": "AEJEA",
+    "destination": "CNSHA",
+    "departure": "2026-10-16",
+    "arrival": "2026-10-31",
+    "transit_days": 15
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK AURORA",
+    "voyage": "491E",
+    "origin": "SGSIN",
+    "destination": "AEJEA",
+    "departure": "2026-10-18",
+    "arrival": "2026-11-04",
+    "transit_days": 17
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD HORIZON",
+    "voyage": "954E",
+    "origin": "USLAX",
+    "destination": "INNSA",
+    "departure": "2026-10-18",
+    "arrival": "2026-11-20",
+    "transit_days": 33
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK SOLSTICE",
+    "voyage": "126N",
+    "origin": "AEJEA",
+    "destination": "SGSIN",
+    "departure": "2026-10-20",
+    "arrival": "2026-11-02",
+    "transit_days": 13
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK SOLSTICE",
+    "voyage": "229N",
+    "origin": "INNSA",
+    "destination": "AEJEA",
+    "departure": "2026-10-20",
+    "arrival": "2026-10-27",
+    "transit_days": 7
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD AURORA",
+    "voyage": "569E",
+    "origin": "CNSHA",
+    "destination": "USLAX",
+    "departure": "2026-10-21",
+    "arrival": "2026-11-01",
+    "transit_days": 11
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA MERIDIAN",
+    "voyage": "254W",
+    "origin": "DEHAM",
+    "destination": "INNSA",
+    "departure": "2026-10-21",
+    "arrival": "2026-11-02",
+    "transit_days": 12
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD ATLAS",
+    "voyage": "434N",
+    "origin": "USLAX",
+    "destination": "AEJEA",
+    "departure": "2026-10-21",
+    "arrival": "2026-11-10",
+    "transit_days": 20
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD ATLAS",
+    "voyage": "163W",
+    "origin": "USLAX",
+    "destination": "CNSHA",
+    "departure": "2026-10-22",
+    "arrival": "2026-11-27",
+    "transit_days": 36
+  },
+  {
+    "carrier": "MSC",
+    "vessel": "MSC HORIZON",
+    "voyage": "170N",
+    "origin": "AEJEA",
+    "destination": "DEHAM",
+    "departure": "2026-10-23",
+    "arrival": "2026-11-26",
+    "transit_days": 34
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK HORIZON",
+    "voyage": "386N",
+    "origin": "INNSA",
+    "destination": "CNSHA",
+    "departure": "2026-10-23",
+    "arrival": "2026-11-15",
+    "transit_days": 23
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD SOLSTICE",
+    "voyage": "489S",
+    "origin": "USLAX",
+    "destination": "SGSIN",
+    "departure": "2026-10-25",
+    "arrival": "2026-11-02",
+    "transit_days": 8
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK SOLSTICE",
+    "voyage": "352E",
+    "origin": "CNSHA",
+    "destination": "NLRTM",
+    "departure": "2026-10-26",
+    "arrival": "2026-11-09",
+    "transit_days": 14
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA HORIZON",
+    "voyage": "393W",
+    "origin": "NLRTM",
+    "destination": "AEJEA",
+    "departure": "2026-10-26",
+    "arrival": "2026-11-02",
+    "transit_days": 7
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD AURORA",
+    "voyage": "706W",
+    "origin": "AEJEA",
+    "destination": "NLRTM",
+    "departure": "2026-10-26",
+    "arrival": "2026-11-14",
+    "transit_days": 19
+  },
+  {
+    "carrier": "MSC",
+    "vessel": "MSC HORIZON",
+    "voyage": "367W",
+    "origin": "CNSHA",
+    "destination": "DEHAM",
+    "departure": "2026-10-27",
+    "arrival": "2026-12-06",
+    "transit_days": 40
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK SOLSTICE",
+    "voyage": "926E",
+    "origin": "CNSHA",
+    "destination": "AEJEA",
+    "departure": "2026-10-29",
+    "arrival": "2026-11-24",
+    "transit_days": 26
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA HORIZON",
+    "voyage": "340N",
+    "origin": "DEHAM",
+    "destination": "INNSA",
+    "departure": "2026-10-29",
+    "arrival": "2026-11-09",
+    "transit_days": 11
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK HORIZON",
+    "voyage": "271E",
+    "origin": "AEJEA",
+    "destination": "SGSIN",
+    "departure": "2026-10-30",
+    "arrival": "2026-11-22",
+    "transit_days": 23
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK ATLAS",
+    "voyage": "524W",
+    "origin": "DEHAM",
+    "destination": "SGSIN",
+    "departure": "2026-10-31",
+    "arrival": "2026-11-11",
+    "transit_days": 11
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD MERIDIAN",
+    "voyage": "251E",
+    "origin": "DEHAM",
+    "destination": "SGSIN",
+    "departure": "2026-11-01",
+    "arrival": "2026-12-03",
+    "transit_days": 32
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD ATLAS",
+    "voyage": "444S",
+    "origin": "USLAX",
+    "destination": "NLRTM",
+    "departure": "2026-11-01",
+    "arrival": "2026-11-09",
+    "transit_days": 8
+  },
+  {
+    "carrier": "MSC",
+    "vessel": "MSC MERIDIAN",
+    "voyage": "170E",
+    "origin": "CNSHA",
+    "destination": "NLRTM",
+    "departure": "2026-11-02",
+    "arrival": "2026-11-14",
+    "transit_days": 12
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK MERIDIAN",
+    "voyage": "774E",
+    "origin": "NLRTM",
+    "destination": "INNSA",
+    "departure": "2026-11-02",
+    "arrival": "2026-12-09",
+    "transit_days": 37
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA AURORA",
+    "voyage": "938W",
+    "origin": "DEHAM",
+    "destination": "CNSHA",
+    "departure": "2026-11-02",
+    "arrival": "2026-11-30",
+    "transit_days": 28
+  },
+  {
+    "carrier": "MSC",
+    "vessel": "MSC HORIZON",
+    "voyage": "541E",
+    "origin": "NLRTM",
+    "destination": "DEHAM",
+    "departure": "2026-11-03",
+    "arrival": "2026-11-22",
+    "transit_days": 19
+  },
+  {
+    "carrier": "MSC",
+    "vessel": "MSC AURORA",
+    "voyage": "347S",
+    "origin": "INNSA",
+    "destination": "SGSIN",
+    "departure": "2026-11-03",
+    "arrival": "2026-11-22",
+    "transit_days": 19
+  },
+  {
+    "carrier": "MSC",
+    "vessel": "MSC SOLSTICE",
+    "voyage": "371W",
+    "origin": "CNSHA",
+    "destination": "USLAX",
+    "departure": "2026-11-04",
+    "arrival": "2026-11-24",
+    "transit_days": 20
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD ATLAS",
+    "voyage": "324N",
+    "origin": "USLAX",
+    "destination": "NLRTM",
+    "departure": "2026-11-04",
+    "arrival": "2026-11-25",
+    "transit_days": 21
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD AURORA",
+    "voyage": "177W",
+    "origin": "SGSIN",
+    "destination": "NLRTM",
+    "departure": "2026-11-05",
+    "arrival": "2026-11-12",
+    "transit_days": 7
+  },
+  {
+    "carrier": "MSC",
+    "vessel": "MSC AURORA",
+    "voyage": "567W",
+    "origin": "DEHAM",
+    "destination": "NLRTM",
+    "departure": "2026-11-05",
+    "arrival": "2026-11-27",
+    "transit_days": 22
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD ATLAS",
+    "voyage": "761S",
+    "origin": "INNSA",
+    "destination": "SGSIN",
+    "departure": "2026-11-05",
+    "arrival": "2026-11-27",
+    "transit_days": 22
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD HORIZON",
+    "voyage": "535N",
+    "origin": "INNSA",
+    "destination": "DEHAM",
+    "departure": "2026-11-05",
+    "arrival": "2026-12-15",
+    "transit_days": 40
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK AURORA",
+    "voyage": "211S",
+    "origin": "NLRTM",
+    "destination": "SGSIN",
+    "departure": "2026-11-07",
+    "arrival": "2026-11-30",
+    "transit_days": 23
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD AURORA",
+    "voyage": "758S",
+    "origin": "USLAX",
+    "destination": "DEHAM",
+    "departure": "2026-11-07",
+    "arrival": "2026-11-15",
+    "transit_days": 8
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA AURORA",
+    "voyage": "837N",
+    "origin": "NLRTM",
+    "destination": "USLAX",
+    "departure": "2026-11-09",
+    "arrival": "2026-12-06",
+    "transit_days": 27
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD ATLAS",
+    "voyage": "950S",
+    "origin": "DEHAM",
+    "destination": "USLAX",
+    "departure": "2026-11-09",
+    "arrival": "2026-12-18",
+    "transit_days": 39
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA ATLAS",
+    "voyage": "546N",
+    "origin": "AEJEA",
+    "destination": "USLAX",
+    "departure": "2026-11-09",
+    "arrival": "2026-12-16",
+    "transit_days": 37
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA MERIDIAN",
+    "voyage": "545W",
+    "origin": "AEJEA",
+    "destination": "USLAX",
+    "departure": "2026-11-10",
+    "arrival": "2026-12-16",
+    "transit_days": 36
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA HORIZON",
+    "voyage": "512N",
+    "origin": "NLRTM",
+    "destination": "USLAX",
+    "departure": "2026-11-12",
+    "arrival": "2026-12-15",
+    "transit_days": 33
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD SOLSTICE",
+    "voyage": "709N",
+    "origin": "DEHAM",
+    "destination": "USLAX",
+    "departure": "2026-11-12",
+    "arrival": "2026-12-22",
+    "transit_days": 40
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD MERIDIAN",
+    "voyage": "165S",
+    "origin": "USLAX",
+    "destination": "CNSHA",
+    "departure": "2026-11-14",
+    "arrival": "2026-11-30",
+    "transit_days": 16
+  },
+  {
+    "carrier": "MSC",
+    "vessel": "MSC SOLSTICE",
+    "voyage": "924E",
+    "origin": "AEJEA",
+    "destination": "NLRTM",
+    "departure": "2026-11-14",
+    "arrival": "2026-12-10",
+    "transit_days": 26
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD HORIZON",
+    "voyage": "779N",
+    "origin": "INNSA",
+    "destination": "NLRTM",
+    "departure": "2026-11-14",
+    "arrival": "2026-12-06",
+    "transit_days": 22
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA HORIZON",
+    "voyage": "413N",
+    "origin": "INNSA",
+    "destination": "DEHAM",
+    "departure": "2026-11-14",
+    "arrival": "2026-12-20",
+    "transit_days": 36
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA ATLAS",
+    "voyage": "720E",
+    "origin": "NLRTM",
+    "destination": "SGSIN",
+    "departure": "2026-11-16",
+    "arrival": "2026-12-13",
+    "transit_days": 27
+  },
+  {
+    "carrier": "MSC",
+    "vessel": "MSC HORIZON",
+    "voyage": "388W",
+    "origin": "CNSHA",
+    "destination": "INNSA",
+    "departure": "2026-11-17",
+    "arrival": "2026-12-03",
+    "transit_days": 16
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK ATLAS",
+    "voyage": "365W",
+    "origin": "DEHAM",
+    "destination": "AEJEA",
+    "departure": "2026-11-17",
+    "arrival": "2026-12-24",
+    "transit_days": 37
+  },
+  {
+    "carrier": "MSC",
+    "vessel": "MSC MERIDIAN",
+    "voyage": "304E",
+    "origin": "AEJEA",
+    "destination": "CNSHA",
+    "departure": "2026-11-18",
+    "arrival": "2026-11-26",
+    "transit_days": 8
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK SOLSTICE",
+    "voyage": "724S",
+    "origin": "AEJEA",
+    "destination": "INNSA",
+    "departure": "2026-11-18",
+    "arrival": "2026-12-24",
+    "transit_days": 36
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA HORIZON",
+    "voyage": "265S",
+    "origin": "SGSIN",
+    "destination": "NLRTM",
+    "departure": "2026-11-19",
+    "arrival": "2026-12-04",
+    "transit_days": 15
+  },
+  {
+    "carrier": "MSC",
+    "vessel": "MSC MERIDIAN",
+    "voyage": "280S",
+    "origin": "DEHAM",
+    "destination": "NLRTM",
+    "departure": "2026-11-19",
+    "arrival": "2026-12-23",
+    "transit_days": 34
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA ATLAS",
+    "voyage": "741W",
+    "origin": "DEHAM",
+    "destination": "AEJEA",
+    "departure": "2026-11-19",
+    "arrival": "2026-12-29",
+    "transit_days": 40
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD ATLAS",
+    "voyage": "552S",
+    "origin": "NLRTM",
+    "destination": "INNSA",
+    "departure": "2026-11-20",
+    "arrival": "2026-12-17",
+    "transit_days": 27
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD AURORA",
+    "voyage": "401W",
+    "origin": "INNSA",
+    "destination": "NLRTM",
+    "departure": "2026-11-20",
+    "arrival": "2026-11-28",
+    "transit_days": 8
+  },
+  {
+    "carrier": "MSC",
+    "vessel": "MSC SOLSTICE",
+    "voyage": "665W",
+    "origin": "SGSIN",
+    "destination": "DEHAM",
+    "departure": "2026-11-23",
+    "arrival": "2026-12-23",
+    "transit_days": 30
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK MERIDIAN",
+    "voyage": "737E",
+    "origin": "USLAX",
+    "destination": "DEHAM",
+    "departure": "2026-11-23",
+    "arrival": "2026-12-29",
+    "transit_days": 36
+  },
+  {
+    "carrier": "MSC",
+    "vessel": "MSC HORIZON",
+    "voyage": "332N",
+    "origin": "INNSA",
+    "destination": "AEJEA",
+    "departure": "2026-11-23",
+    "arrival": "2026-12-12",
+    "transit_days": 19
+  },
+  {
+    "carrier": "MSC",
+    "vessel": "MSC ATLAS",
+    "voyage": "208S",
+    "origin": "AEJEA",
+    "destination": "DEHAM",
+    "departure": "2026-11-24",
+    "arrival": "2026-12-27",
+    "transit_days": 33
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA AURORA",
+    "voyage": "385S",
+    "origin": "AEJEA",
+    "destination": "INNSA",
+    "departure": "2026-11-24",
+    "arrival": "2026-12-16",
+    "transit_days": 22
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA HORIZON",
+    "voyage": "459S",
+    "origin": "NLRTM",
+    "destination": "CNSHA",
+    "departure": "2026-11-25",
+    "arrival": "2026-12-06",
+    "transit_days": 11
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK MERIDIAN",
+    "voyage": "151N",
+    "origin": "USLAX",
+    "destination": "AEJEA",
+    "departure": "2026-11-25",
+    "arrival": "2026-12-31",
+    "transit_days": 36
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA MERIDIAN",
+    "voyage": "478N",
+    "origin": "CNSHA",
+    "destination": "AEJEA",
+    "departure": "2026-11-26",
+    "arrival": "2026-12-07",
+    "transit_days": 11
+  },
+  {
+    "carrier": "Hapag-Lloyd",
+    "vessel": "HAPAG-LLOYD HORIZON",
+    "voyage": "145S",
+    "origin": "NLRTM",
+    "destination": "DEHAM",
+    "departure": "2026-11-27",
+    "arrival": "2026-12-16",
+    "transit_days": 19
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA MERIDIAN",
+    "voyage": "370E",
+    "origin": "CNSHA",
+    "destination": "INNSA",
+    "departure": "2026-11-29",
+    "arrival": "2026-12-12",
+    "transit_days": 13
+  },
+  {
+    "carrier": "Maersk",
+    "vessel": "MAERSK MERIDIAN",
+    "voyage": "919W",
+    "origin": "SGSIN",
+    "destination": "USLAX",
+    "departure": "2026-11-29",
+    "arrival": "2026-12-21",
+    "transit_days": 22
+  },
+  {
+    "carrier": "CMA CGM",
+    "vessel": "CMA AURORA",
+    "voyage": "998N",
+    "origin": "NLRTM",
+    "destination": "CNSHA",
+    "departure": "2026-11-30",
+    "arrival": "2026-12-08",
+    "transit_days": 8
+  },
+  {
+    "carrier": "MSC",
+    "vessel": "MSC HORIZON",
+    "voyage": "871S",
+    "origin": "USLAX",
+    "destination": "SGSIN",
+    "departure": "2026-11-30",
+    "arrival": "2026-12-29",
+    "transit_days": 29
+  }
+]
