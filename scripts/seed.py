@@ -51,28 +51,6 @@ ORIGIN_EVENTS = {"gate_out", "loaded", "departed"}
 
 BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:8000")
 
-# Each step: (org_id, request_id, path with query, expected status). Rename slots once they settle.
-SCENARIOS: dict[str, list[tuple[str, str, str, int]]] = {
-    "slot_1": [
-        ("acme", "a", "/container_tracking?container_id=X", 200),
-    ],
-    "slot_2": [
-        ("acme", "a", "/container_tracking?container_id=X", 200),
-        ("acme", "a", "/container_tracking?container_id=X", 409),
-    ],
-    "slot_3": [
-        ("acme", "a", "/container_tracking?container_id=X", 200),
-        ("acme", "a", "/container_tracking?container_id=Y", 422),
-    ],
-    "slot_4": [
-        ("tiny", "a", "/container_tracking?container_id=X", 200),
-        ("tiny", "b", "/container_tracking?container_id=X", 429),
-    ],
-    "slot_5": [
-        ("noquota", "a", "/container_tracking?container_id=X", 403),
-    ],
-}
-
 
 def period_for(label: str | None) -> tuple[str, int]:
     if label is None:
