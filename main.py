@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -11,6 +12,8 @@ from middlewares.meter import MeterMiddleware
 from operations import router as operations_router
 from store import QuotaStore
 from usage import router as usage_router
+
+logging.basicConfig(level=os.environ.get("LOG_LEVEL", "WARNING"))
 
 load_dotenv()
 REDIS_URL = os.environ.get("REDIS_URL") or ""
