@@ -47,7 +47,6 @@ Reservation through request ID, deduplication of charges + reserve / refund work
     b. Atomicity holds for single-feature batches: `reserve.lua` checks and charges the whole batch cost in one script run, so no other instance lands in between. Parallel batches near the limit never go over it and a rejected batch charges nothing (BA11, `test_batches_race_near_the_limit`, re-run across replicas in `tests/integration`).
 
 ## Correctness / failure handling
-(Invariants, failure modes, retries, recovery.)
 
 1. Failed requests shouldn't count towards the quota
 2. Retries shouldn't count as double exhaustion of quota.
@@ -91,7 +90,6 @@ Reservation through request ID, deduplication of charges + reserve / refund work
     g. Pending: mutation check, swap `reserve.lua` for a non-atomic GET then INCRBY and confirm B8 fails. Until then B8 passing doesn't by itself show it would catch a race.
 
 ## Limitations & risks
-(Breaking points, known gaps.)
 
 1. Response validation, i.e. bad responses from vendors should they use up the quota?
 2. Request requires N units, org has M < N: all-or-nothing, the batch gets 429 and nothing is charged. Partial request fulfilment dropped: ops are read-only so running the first M would be safe, but billing gets complicated (reserve has to return a grant, callers resend skipped ops under a new id, mixed features need prefix rules).
