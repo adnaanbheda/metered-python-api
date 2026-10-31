@@ -7,7 +7,9 @@ from mock_data import ORGS
 
 def examples(values: dict[str, str]) -> dict:
     """Swagger dropdown entries from {value: summary}; fields stay free text."""
-    return {value: {"summary": summary, "value": value} for value, summary in values.items()}
+    return {
+        value: {"summary": summary, "value": value} for value, summary in values.items()
+    }
 
 
 def org_summary(org: str) -> str:
@@ -26,5 +28,7 @@ async def org_id_header(
     return request.state.org_id
 
 
-async def request_id_header(x_request_id: Annotated[str | None, Header()] = None) -> None:
+async def request_id_header(
+    x_request_id: Annotated[str | None, Header()] = None,
+) -> None:
     """Expose optional X-Request-Id as a per-request field in Swagger."""

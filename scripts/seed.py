@@ -27,7 +27,9 @@ def load_orgs() -> dict[str, dict[str, int]]:
     return json.loads(ORGS_FILE.read_text())
 
 
-def write_limits(r: redis.Redis, org_id: str, limits: dict[str, int], period: str, expire_at: int) -> None:
+def write_limits(
+    r: redis.Redis, org_id: str, limits: dict[str, int], period: str, expire_at: int
+) -> None:
     features_key = QuotaStore.features_key(org_id, period)
     pipe = r.pipeline()
     for feature, limit in limits.items():
@@ -65,13 +67,17 @@ COMMANDS = {"seed": seed, "remove": remove, "reset": reset}
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     p.add_argument(
         "command",
         choices=COMMANDS,
         help="seed: load limits; remove: delete one period's keys; reset: wipe everything, then load",
     )
-    p.add_argument("--period", help="YYYY-MM, default current month (required for remove)")
+    p.add_argument(
+        "--period", help="YYYY-MM, default current month (required for remove)"
+    )
     args = p.parse_args()
     if args.command == "remove" and args.period is None:
         p.error("remove needs --period")

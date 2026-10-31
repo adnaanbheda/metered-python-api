@@ -89,7 +89,9 @@ async def test_usage_counter_expires_after_period_end(client, redis_client, cloc
     assert (await call(client)).status_code == 200
 
     period, expire_at = store.current_period(JAN)
-    assert expire_at == int(datetime(2099, 2, 2, tzinfo=UTC).timestamp())  # +1 day grace
+    assert expire_at == int(
+        datetime(2099, 2, 2, tzinfo=UTC).timestamp()
+    )  # +1 day grace
     ttl = await redis_client.ttl(QuotaStore.usage_key(ORG, FEATURE, period))
     assert abs(ttl - (expire_at - time.time())) < 5
 

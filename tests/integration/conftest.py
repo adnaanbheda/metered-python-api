@@ -21,7 +21,11 @@ STAGE_PORT = 8090
 REDIS_PORT = 6390
 SETTLE_TIMEOUT = 2.0  # seconds a response waits for its commit/refund to land
 COMPOSE = ["docker", "compose", "-p", "quota-it", "-f", str(ROOT / "compose.yaml")]
-COMPOSE_ENV = {**os.environ, "STAGE_PORT": str(STAGE_PORT), "REDIS_PORT": str(REDIS_PORT)}
+COMPOSE_ENV = {
+    **os.environ,
+    "STAGE_PORT": str(STAGE_PORT),
+    "REDIS_PORT": str(REDIS_PORT),
+}
 
 
 @pytest.fixture(scope="session")
@@ -29,7 +33,9 @@ def stack():
     if shutil.which("docker") is None:
         pytest.skip("docker not installed")
     try:
-        subprocess.run([*COMPOSE, "up", "-d", "--build", "--wait"], env=COMPOSE_ENV, check=True)
+        subprocess.run(
+            [*COMPOSE, "up", "-d", "--build", "--wait"], env=COMPOSE_ENV, check=True
+        )
         yield
     finally:
         subprocess.run([*COMPOSE, "down", "-v"], env=COMPOSE_ENV, check=True)
@@ -44,7 +50,9 @@ async def redis_client(stack):
     pipe = r.pipeline()
     for org_id, limits in load_orgs().items():
         for feature, limit in limits.items():
-            pipe.set(QuotaStore.limit_key(org_id, feature, period), limit, exat=expire_at)
+            pipe.set(
+                QuotaStore.limit_key(org_id, feature, period), limit, exat=expire_at
+            )
             pipe.sadd(QuotaStore.features_key(org_id, period), feature)
     await pipe.execute()
     yield r
