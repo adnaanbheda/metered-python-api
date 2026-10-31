@@ -9,6 +9,9 @@ With no command, runs the defaults on a grid (full | quick):
     B4  rate sweep, unmetered                  -q <rates>, 20 s | 5 s each
     B5  rate sweep, metered                    -q <rates>, 20 s | 5 s each
     B6  sustained 2k/s metered                 60 s | 15 s
+    B7  quota under the replica race           limit 10000 | 2000, 3x that many requests, unthrottled;
+                                               passes if exactly `limit` got 200 (rest 429) and the
+                                               Redis usage counter agrees
   rates: 2000/5000/10000 | 2000/5000
 
 Run with the stack up (docker compose up -d --wait):
@@ -28,7 +31,7 @@ One custom run instead of the defaults:
 
 Both load generators run inside the compose network (store_bench.py in a one-off api container, oha as
 its own container), so Docker Desktop's port forwarding is never in the path. Output goes to
-bench-results/<timestamp>/: redis/ and api/ with one JSON per run, named after its flags
+bench-results/<timestamp>/: redis/, api/ and quota/ with one JSON per run, named after its flags
 (B2-n5000-c16-procs4, custom-granian-metered-20s-c512-q8000), plus env.txt and summary.md.
 """
 
@@ -48,9 +51,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT / "src"), str(ROOT / "scripts")]
 
-from bench_report import summary  # noqa: E402
-from store import connect_sync  # noqa: E402
-from store_bench import ORG, cleanup, print_table, provision  # noqa: E402
+from bench_report import results, summary  # noqa: E402
+from store import QuotaStore, connect_sync, current_period  # noqa: E402
+from store_bench import FEATURE, ORG, cleanup, print_table, provision  # noqa: E402
 from store_bench import add_args as add_store_bench_args  # noqa: E402
 
 METERED_PATH = "/container_tracking?container_id=MSCU1719583"
@@ -70,16 +73,18 @@ class Grid:
     api_duration: str  # B4, B5, per rate
     sustained_duration: str  # B6
     pause: int  # seconds after each api run
+    quota_limit: int  # B7
 
 
 GRIDS = {
-    "full": Grid([2000, 5000, 10000], [1, 2, 4, 8], 5000, 20, "20s", "60s", 10),
-    "quick": Grid([2000, 5000], [1, 4], 2000, 5, "5s", "15s", 3),
+    "full": Grid([2000, 5000, 10000], [1, 2, 4, 8], 5000, 20, "20s", "60s", 10, 10000),
+    "quick": Grid([2000, 5000], [1, 4], 2000, 5, "5s", "15s", 3, 2000),
 }
+QUOTA_ORG = "bench-quota"  # B7's own org, so its small limit never throttles B4-B6
 
 OHA_IMAGE = "ghcr.io/hatoo/oha:latest"
 OHA_NAME = f"bench-oha-{os.getpid()}"  # so Ctrl+C can stop the running oha
-OHA_FLAGS = ["--ipv4", "--no-tui", "--output-format", "json", "-H", f"X-Org-Id: {ORG}"]
+OHA_FLAGS = ["--ipv4", "--no-tui", "--output-format", "json"]
 # One-off api container on the compose network, with the current scripts/ mounted.
 IN_API = [
     *"docker compose run --rm --no-deps -T".split(),
@@ -174,21 +179,31 @@ def run_redis_bench(label: str, **kw: object) -> None:
 
 
 def run_api_bench(
-    label: str, server: str, route: str, pause: int = 0, **kw: object
-) -> None:
-    """oha through nginx to the api replicas, then pause seconds. No q: unthrottled."""
+    label: str, server: str, route: str, pause: int = 0, org: str = ORG, **kw: object
+) -> tuple[str, dict]:
+    """oha through nginx to the api replicas as `org`, then pause seconds. No q: unthrottled.
+    Returns the run name and oha's report."""
     name = run_name(label, server, route, **kw)
     log(f"{name}: oha {' '.join(flags(**kw))} {ROUTES[route]}")
     oha = ["docker", "run", "--rm", "--name", OHA_NAME, "--network", NETWORK, OHA_IMAGE]
     url = f"http://nginx{ROUTES[route]}"
-    save("api", name, sh(*oha, *flags(**kw), *OHA_FLAGS, url, capture=True))
+    out = sh(
+        *oha, *flags(**kw), *OHA_FLAGS, "-H", f"X-Org-Id: {org}", url, capture=True
+    )
+    save("api", name, out)
     time.sleep(pause)
+    return name, json.loads(out)
+
+
+def host_redis():
+    """The stack's Redis through its published port, for provisioning and checks."""
+    return connect_sync(f"redis://127.0.0.1:{os.environ['REDIS_PORT']}/0")
 
 
 def on_each_server(servers: list[str], bench: Callable[[str], None]) -> None:
     """Provision the bench org (the api bench's X-Org-Id), then restart the stack on each server
     and run bench(server). Deletes the org's keys afterwards."""
-    r = connect_sync(f"redis://127.0.0.1:{os.environ['REDIS_PORT']}/0")
+    r = host_redis()
     provision(r, ORG)
     try:
         for server in servers:
@@ -238,6 +253,44 @@ def b6_api_sustained(g: Grid, server: str) -> None:
     run_api_bench(
         "B6", server, "metered", g.pause, z=g.sustained_duration, c=256, q=2000
     )
+
+
+def b7_api_quota(g: Grid, server: str) -> None:
+    """Offer 3x the limit, unthrottled, so every replica races for the last units. -n, not -z:
+    a run cut off by -z abandons in-flight requests the server may still commit."""
+    r, limit = host_redis(), g.quota_limit
+    cleanup(r, QUOTA_ORG)
+    provision(r, QUOTA_ORG, limit)
+    try:
+        name, report = run_api_bench(
+            "B7", server, "metered", org=QUOTA_ORG, n=3 * limit, c=512
+        )
+        # Refunds and commits land just after the response is sent; let them settle.
+        time.sleep(1)
+        used = int(
+            r.get(QuotaStore.usage_key(QUOTA_ORG, FEATURE, current_period()[0])) or 0
+        )
+        live = sum(
+            r.hget(k, "state") == "reserved"
+            for k in r.scan_iter(match=f"res:{{{QUOTA_ORG}}}:*", count=1000)
+        )
+    finally:
+        cleanup(r, QUOTA_ORG)
+    codes = report.get("statusCodeDistribution", {})
+    ok, rejected = codes.get("200", 0), codes.get("429", 0)
+    check = {
+        "limit": limit,
+        "requests": 3 * limit,
+        "ok": ok,
+        "rejected": rejected,
+        "other": 3 * limit - ok - rejected,
+        "used": used,
+        "live_reservations": live,
+    }
+    check["pass"] = ok == used == limit and check["other"] == 0 and live == 0
+    log(f"{name}: {'PASS' if check['pass'] else 'FAIL'} {check}")
+    save("quota", name, json.dumps(check))
+    time.sleep(g.pause)
 
 
 def record_env() -> None:
@@ -295,6 +348,7 @@ def run_defaults(args: argparse.Namespace) -> None:
         b4_api_unmetered(g, server, rates)
         b5_api_metered(g, server, rates)
         b6_api_sustained(g, server)
+        b7_api_quota(g, server)
 
     if args.only != "api":
         # store_bench.py provisions and deletes its own bench org(s), so run it before provisioning.
@@ -345,6 +399,8 @@ def main() -> None:
 
     print(summary(RES))
     log("done")
+    if failed := [name for name, check in results(RES, "quota") if not check["pass"]]:
+        sys.exit(f"quota check failed: {', '.join(failed)}")
 
 
 if __name__ == "__main__":

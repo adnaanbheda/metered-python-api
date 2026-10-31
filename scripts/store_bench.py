@@ -163,9 +163,9 @@ def init_worker(barrier: threading.Barrier) -> None:
     _barrier = barrier
 
 
-def provision(r: redis.Redis, org: str) -> None:
+def provision(r: redis.Redis, org: str, limit: int = LIMIT) -> None:
     period, expire_at = current_period()
-    write_limits(r, org, {FEATURE: LIMIT}, period, expire_at)
+    write_limits(r, org, {FEATURE: limit}, period, expire_at)
 
 
 def cleanup(r: redis.Redis, org: str) -> None:

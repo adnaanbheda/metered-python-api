@@ -57,9 +57,44 @@ def api_summary(res: Path) -> str:
     return md_table(header, [api_row(name, r) for name, r in results(res, "api")])
 
 
+QUOTA_FIELDS = (
+    "limit",
+    "requests",
+    "ok",
+    "rejected",
+    "other",
+    "used",
+    "live_reservations",
+)
+
+
+def quota_summary(res: Path) -> str:
+    """B7: exactly `limit` requests may succeed when 3x that many race for it."""
+    header = [
+        "Run",
+        "Limit",
+        "Requests",
+        "200",
+        "429",
+        "Other",
+        "Redis used",
+        "Live res.",
+        "",
+    ]
+    rows = [
+        [name, *(c[k] for k in QUOTA_FIELDS), "PASS" if c["pass"] else "FAIL"]
+        for name, c in results(res, "quota")
+    ]
+    return md_table(header, rows)
+
+
 def summary(res: Path) -> str:
     """Write <res>/summary.md and return it. A bench with no results gets no section."""
-    sections = {"Redis bench": redis_summary(res), "Api bench": api_summary(res)}
+    sections = {
+        "Redis bench": redis_summary(res),
+        "Api bench": api_summary(res),
+        "Quota check": quota_summary(res),
+    }
     md = "\n".join(f"## {title}\n\n{body}" for title, body in sections.items() if body)
     (res / "summary.md").write_text(md, encoding="utf-8")
     return md
