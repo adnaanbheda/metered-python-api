@@ -1,21 +1,16 @@
-"""Benchmark quota operations against a running Redis / stack.
-
-    store  reserve+commit and reserve+refund straight against Redis: the cost the meter adds per request
-    http   DEPRECATED, use oha (bench_suite.py B4-B6). Requests through nginx: unmetered baseline (/)
-           vs a metered route. httpx saturates far below the stack, so it measures the client.
+"""Benchmark the meter's Redis operations: reserve+commit and reserve+refund straight against
+Redis, the cost the meter adds per request. HTTP load through the stack is bench_suite.py (oha).
 
 Provisions a throwaway "bench" org with an effectively unlimited quota, and deletes its keys afterwards.
 Commits still append to the usage stream.
 
 Run from repo root with src on the path:
     $env:PYTHONPATH="src"; $env:REDIS_URL="redis://127.0.0.1:6381/0"
-    uv run python scripts/bench.py store -n 20000 -c 64
-    uv run python scripts/bench.py store -n 5000 -c 16 --procs 8
-    uv run python scripts/bench.py http -n 5000 -c 64 --base-url http://127.0.0.1:8080 --json bench.json
+    uv run python scripts/store_bench.py -n 20000 -c 64
+    uv run python scripts/store_bench.py -n 5000 -c 16 --procs 8
 
-Closed loop: -c workers each send their next request as soon as the last one returns.
-A single Python client tops out early (store: ~2.7k ops/s; http via httpx: a few hundred req/s on
-Windows), so numbers near that measure the client. Use oha for HTTP throughput.
+Closed loop: -c workers each send their next op as soon as the last one returns.
+A single Python client tops out early (~2.7k ops/s), so numbers near that measure the client.
 --procs N runs N such clients in parallel processes, each on its own org (bench-0, bench-1, ...) so
 they never share a quota key. -n and -c are per process. All processes finish warming up before any
 starts timing; ops/s is the combined total over the span from first start to last finish.
@@ -24,34 +19,28 @@ Open loop: --rate R offers R ops/s in total (R / procs per process), like oha -q
 flight per process. Latency is measured from each op's scheduled start, so time queued behind a
 slow op counts (corrected for coordinated omission). If ops/s comes out below R, the client fell
 behind and the latencies include its own queueing: add --procs.
-    uv run python scripts/bench.py store --op refund --rate 5000 -n 50000 -c 50 --procs 4
+    uv run python scripts/store_bench.py --op refund --rate 5000 -n 50000 -c 50 --procs 4
 """
 
 import argparse
 import asyncio
-import json
 import multiprocessing as mp
 import statistics
-import sys
 import threading
 import time
 import uuid
 from collections.abc import Awaitable, Callable
 from concurrent.futures import ProcessPoolExecutor
-from datetime import UTC, datetime
 from functools import partial
-from pathlib import Path
 
-import httpx
 import redis
 import redis.asyncio as aredis
 
-from seed import BASE_URL, REDIS_URL, write_limits
+from seed import REDIS_URL, write_limits
 from store import QuotaStore, current_period
 
 ORG = "bench"
 FEATURE = "container-tracking"
-CONTAINER_ID = "MSCU1719583"
 LIMIT = 10**12  # quota never runs out mid-run
 # A dropped reply fails the run instead of hanging it (seen via Docker Desktop's host.docker.internal).
 SOCKET_TIMEOUT_S = 5
@@ -169,31 +158,8 @@ async def bench_store(args, org: str) -> list[Sample]:
         await r.aclose()
 
 
-async def bench_http(args, org: str) -> list[Sample]:
-    """Deprecated: httpx tops out at a few hundred req/s, use oha (bench_suite.py B4-B6)."""
-    limits = httpx.Limits(max_connections=args.concurrency)
-    async with httpx.AsyncClient(
-        base_url=args.base_url, headers={"X-Org-Id": org}, limits=limits
-    ) as client:
-
-        async def get(path: str, params: dict | None = None) -> None:
-            (await client.get(path, params=params)).raise_for_status()
-
-        return [
-            await measure("GET / (unmetered)", partial(get, "/"), args),
-            await measure(
-                "GET /container_tracking",
-                partial(get, "/container_tracking", {"container_id": CONTAINER_ID}),
-                args,
-            ),
-        ]
-
-
-BENCHES = {"store": bench_store, "http": bench_http}
-
-
-def bench_process(mode: str, args, org: str) -> list[Sample]:
-    return asyncio.run(BENCHES[mode](args, org))
+def bench_process(args, org: str) -> list[Sample]:
+    return asyncio.run(bench_store(args, org))
 
 
 def init_worker(barrier: threading.Barrier) -> None:
@@ -227,29 +193,14 @@ def main() -> None:
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    p.add_argument("mode", choices=BENCHES)
     p.add_argument("-n", "--requests", type=int, default=10_000, help="per process")
     p.add_argument("-c", "--concurrency", type=int, default=50, help="per process")
     p.add_argument("--procs", type=int, default=1, help="parallel client processes")
     p.add_argument(
         "--rate", type=float, help="open loop: total ops/s offered across all processes"
     )
-    p.add_argument(
-        "--op", choices=["commit", "refund", "both"], default="both", help="store mode"
-    )
-    p.add_argument(
-        "--base-url",
-        default=BASE_URL,
-        help="http mode (deprecated): nginx or a single api",
-    )
-    p.add_argument("--json", type=Path, help="also write raw results here")
+    p.add_argument("--op", choices=["commit", "refund", "both"], default="both")
     args = p.parse_args()
-    if args.mode == "http":
-        print(
-            "warning: http mode is deprecated, httpx measures the client; "
-            "use oha (bench_suite.py B4-B6)",
-            file=sys.stderr,
-        )
 
     orgs = [ORG] if args.procs == 1 else [f"{ORG}-{i}" for i in range(args.procs)]
     r = redis.Redis.from_url(
@@ -259,13 +210,13 @@ def main() -> None:
         provision(r, org)
     try:
         if args.procs == 1:
-            per_proc = [bench_process(args.mode, args, ORG)]
+            per_proc = [bench_process(args, ORG)]
         else:
             barrier = mp.Barrier(args.procs, timeout=BARRIER_TIMEOUT_S)
             with ProcessPoolExecutor(
                 args.procs, initializer=init_worker, initargs=(barrier,)
             ) as pool:
-                per_proc = list(pool.map(partial(bench_process, args.mode, args), orgs))
+                per_proc = list(pool.map(partial(bench_process, args), orgs))
     finally:
         for org in orgs:
             cleanup(r, org)
@@ -274,28 +225,11 @@ def main() -> None:
         summarize([samples[i] for samples in per_proc]) for i in range(len(per_proc[0]))
     ]
     print(
-        f"{args.mode}: {args.procs} process(es) x {args.requests} requests, "
+        f"{args.procs} process(es) x {args.requests} requests, "
         f"concurrency {args.concurrency} each"
         + (f", {args.rate:g} ops/s offered" if args.rate else ", closed loop")
     )
     print_table(rows)
-    if args.json:
-        args.json.write_text(
-            json.dumps(
-                {
-                    "mode": args.mode,
-                    "at": datetime.now(UTC).isoformat(),
-                    "procs": args.procs,
-                    "requests": args.requests,
-                    "concurrency": args.concurrency,
-                    "rate": args.rate,
-                    "base_url": args.base_url if args.mode == "http" else None,
-                    "results": rows,
-                },
-                indent=2,
-            )
-            + "\n"
-        )
 
 
 if __name__ == "__main__":
