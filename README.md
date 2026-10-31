@@ -5,7 +5,7 @@ Per-org, per-feature quota metering for a FastAPI service. Redis + Lua reserve/c
 ## Run
 
 ```sh
-docker compose up -d --build --wait   # 3 API replicas behind nginx, Redis (AOF), seeded limits
+docker compose up -d --build --wait   # 8 API replicas behind nginx, Redis (AOF), seeded limits
 ```
 
 Swagger: http://localhost:8080/docs
@@ -39,9 +39,30 @@ Scenarios live in [tests/scenarios/](tests/scenarios/) as prose + YAML; manual c
 
 ## Bench
 
-uv run scripts/bench_suite.py --servers granian     # one server
-uv run scripts/bench_suite.py --skip-meter          # skip meter-only runs (B1-B3)
-uv run scripts/bench_suite.py --servers             # meter-only runs only
-uv run scripts/bench_suite.py --metered-rates 2000 4000 6000
+Needs the stack up (`docker compose up -d --wait`). Load runs from inside the compose network, so nothing else to install. Results and analysis: [docs/benchmarks.md](docs/benchmarks.md).
 
+| Run | Measures |
+|---|---|
+| B1 | meter overhead, single requests (reserve + commit straight against Redis) |
+| B2 | meter max load, 1/2/4/8 client processes |
+| B3 | meter overhead at fixed rate (2k/5k/10k ops/s, 20 s) |
+| B4 | HTTP max load, unmetered route |
+| B5 | HTTP max load, metered route |
+| B6 | sustained 2k req/s metered, 60 s |
+
+```sh
+uv run scripts/bench_suite.py                                 # everything, uvicorn + granian (~25 min)
+uv run scripts/bench_suite.py --servers granian               # B1-B6, one server
+uv run scripts/bench_suite.py --servers                       # B1-B3 only, no HTTP runs
+uv run scripts/bench_suite.py --skip-meter --servers granian  # B4-B6 only
+uv run scripts/bench_suite.py --metered-rates 2000 4000 6000  # custom B5 sweep
+```
+
+Raw output and a `summary.md` land in `bench-results/<timestamp>/`.
+
+The meter alone, without the suite (Redis published on 6381):
+
+```sh
+PYTHONPATH=src REDIS_URL=redis://127.0.0.1:6381/0 uv run scripts/bench.py store -n 20000 -c 64
+```
 

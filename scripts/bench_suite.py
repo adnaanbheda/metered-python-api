@@ -374,10 +374,17 @@ def main() -> None:
     p.add_argument("--overhead-rates", nargs="+", type=int, default=[2000, 5000, 10000])
     args = p.parse_args()
 
-    # compose recreates nginx on 8080 without it
-    os.environ.setdefault("STAGE_PORT", "8085")
     plat = platform_name()
     preflight(plat)
+    # start_server re-runs `compose up`, which recreates nginx/redis on the compose defaults
+    # unless these match what the running stack published: keep its ports.
+    for var, service, port in (
+        ("STAGE_PORT", "nginx", "80"),
+        ("REDIS_PORT", "redis", "6379"),
+    ):
+        os.environ.setdefault(
+            var, output("docker", "compose", "port", service, port).rsplit(":", 1)[1]
+        )
 
     res = ROOT / "bench-results" / f"{datetime.now():%Y%m%d-%H%M%S}"
     res.mkdir(parents=True)
