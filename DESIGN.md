@@ -11,7 +11,7 @@ Concurrency has to be something to be taken care of, an org can call multiple AP
 
 API with middlewares that reach redis to make quota checks
 
-Redis houses quota limits, i.e. orgID:feature:limit:period (mutation discouraged)
+Redis houses quota limits, i.e. quota:{org}:feature:limit:period (mutation discouraged)
 Redis houses another counter that stores the usage key with a period, i.e. orgID:feature:usage:period
 Reset will change the period and therefore the keys, new month's renewal explicitly handled by another billing/renewal api/store (DEFERRED, additional Postgres required)
 
@@ -38,7 +38,7 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 1. Middleware/Decorator pattern
 2. Redis/MemCached
     a. Redis clear choice since we can script at the Redis level for atomic checks
-3. Atomicity maintained at the DB level.
+3. Atomicity maintained at the DB level. (CHOSEN: one Lua script, `reserve.lua`, does the dedupe, limit check, charge and reservation write in one round trip. Redis runs a script to completion, so no other instance's command can land in between, and a rejected request writes nothing.)
 4. Balance stored separate or same as Redis? (DEFERRED, see Future work 1)
     a. Postgres stores the organization's limit
 5. Redis cluster necessary if scale's required, bucket keys to nodes based on hashing
@@ -57,6 +57,11 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 
 6. Reserve then refund is redundant when 404 entries exist but behaviourally it makes sense since production environments will tend to have valid scenarios more often than not. Reserve/Refund is cheaper to always do due to Redis's fast memory storage.
 
+7. Commit/refund runs after the response is sent (CHOSEN: latency). The client never waits on the settle round trip, but for a short window after it receives the response, Redis still shows the reservation as `reserved`.
+    a. A retry with the same request id in that window gets `409 request_in_progress` (or `422 request_id_reused` if the body differs) instead of `already_processed`.
+    b. Success: usage was already charged at reserve, only the usage stream event (written by commit) lags. Failure: usage stays charged until the refund lands, so it briefly over-reports. Quota is never over-granted, since reserve is what holds the units.
+    c. Tests must account for it, see `tests/README.md`.
+
 ## Testing & validation
 
 1. Integration tests, including Redis spinup
@@ -68,7 +73,7 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 7. httpx bottleneck @ 200ops/s, oha gives real benchmark results
 
 ## Limitations & risks
-(Where it breaks, known gaps.)
+(Breaking points, known gaps.)
 
 1. Response validation, i.e. bad responses from vendors should they use up the quota?
 2. Request requires N units, org has M, What happens in the case of M < N, partial request fulfilment or all-or-nothing?
@@ -101,11 +106,10 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 
 ## Technical details
 1. uv/ruff tooling with venv
-2. FastAPI with uvicorn
+2. FastAPI with uvicorn/granian (benchmarking to pick one)
 3. docker compose to horizontally scale
 
 ## Appendix
-AI-assisted parts, how to run, raw benchmark data.
 
 Benchmark results and methodology: [docs/benchmarks.md](docs/benchmarks.md).
 
