@@ -1,7 +1,7 @@
 [project]
 name = "api-metred-quota"
-version = "0.1.0"
-description = "Add your description here"
+version = "1.0.0"
+description = "Per-org, per-feature monthly quota metering as ASGI middleware, backed by Redis Lua scripts"
 readme = "README.md"
 authors = [
     { name = "Adnaan Bheda", email = "adnaan.bheda@gmail.com" }
@@ -13,12 +13,6 @@ dependencies = [
     "redis[hiredis]>=8.1.0",
     "uvicorn>=0.54.0",
 ]
-
-[project.scripts]
-api-metred-quota = "main"
-
-[build-system]
-requires = ["uv_build>=0.13.5,<0.14.0"]
 
 [dependency-groups]
 dev = [
