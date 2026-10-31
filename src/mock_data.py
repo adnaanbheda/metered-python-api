@@ -1,4 +1,4 @@
-"""Mock response data from mocks/*.json (regenerate with scripts/seed.py gen)."""
+"""Mock response data from mocks/*.json (fixed fixtures, edit by hand)."""
 
 import json
 from pathlib import Path
