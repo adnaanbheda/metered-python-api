@@ -24,6 +24,7 @@ behind and the latencies include its own queueing: add --procs.
 
 import argparse
 import asyncio
+import json
 import multiprocessing as mp
 import statistics
 import threading
@@ -34,16 +35,13 @@ from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 
 import redis
-import redis.asyncio as aredis
 
-from seed import REDIS_URL, write_limits
-from store import QuotaStore, current_period
+from seed import write_limits
+from store import QuotaStore, connect, connect_sync, current_period
 
 ORG = "bench"
 FEATURE = "container-tracking"
 LIMIT = 10**12  # quota never runs out mid-run
-# A dropped reply fails the run instead of hanging it (seen via Docker Desktop's host.docker.internal).
-SOCKET_TIMEOUT_S = 5
 BARRIER_TIMEOUT_S = 120
 
 # (name, per-op latencies in ms, timed start and end as epoch seconds)
@@ -129,9 +127,7 @@ def summarize(samples: list[Sample]) -> dict[str, float | int | str]:
 
 
 async def bench_store(args, org: str) -> list[Sample]:
-    r = aredis.Redis.from_url(
-        REDIS_URL, decode_responses=True, socket_timeout=SOCKET_TIMEOUT_S
-    )
+    r = connect()  # the app's client config, so this measures what the meter pays
     store = QuotaStore(r)
 
     async def reserve_commit() -> None:
@@ -189,23 +185,29 @@ def print_table(rows: list[dict]) -> None:
         print("  ".join(str(row[c]).ljust(widths[c]) for c in cols))
 
 
-def main() -> None:
-    p = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+def add_args(p: argparse.ArgumentParser) -> None:
+    """The run's flags; bench_suite.py's `redis` command takes the same ones."""
     p.add_argument("-n", "--requests", type=int, default=10_000, help="per process")
     p.add_argument("-c", "--concurrency", type=int, default=50, help="per process")
     p.add_argument("--procs", type=int, default=1, help="parallel client processes")
     p.add_argument(
-        "--rate", type=float, help="open loop: total ops/s offered across all processes"
+        "--rate", type=int, help="open loop: total ops/s offered across all processes"
     )
     p.add_argument("--op", choices=["commit", "refund", "both"], default="both")
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    add_args(p)
+    p.add_argument(
+        "--json", action="store_true", help="print results as JSON, not a table"
+    )
     args = p.parse_args()
 
     orgs = [ORG] if args.procs == 1 else [f"{ORG}-{i}" for i in range(args.procs)]
-    r = redis.Redis.from_url(
-        REDIS_URL, decode_responses=True, socket_timeout=SOCKET_TIMEOUT_S
-    )
+    r = connect_sync()
     for org in orgs:
         provision(r, org)
     try:
@@ -224,6 +226,9 @@ def main() -> None:
     rows = [
         summarize([samples[i] for samples in per_proc]) for i in range(len(per_proc[0]))
     ]
+    if args.json:
+        print(json.dumps(rows))
+        return
     print(
         f"{args.procs} process(es) x {args.requests} requests, "
         f"concurrency {args.concurrency} each"

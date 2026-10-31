@@ -6,16 +6,14 @@ Run from repo root with src on the path:
 
 import argparse
 import json
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 
 import redis
 
-from store import USAGE_STREAM, QuotaStore, current_period
+from store import USAGE_STREAM, QuotaStore, connect_sync, current_period
 
 ORGS_FILE = Path(__file__).resolve().parents[1] / "mocks" / "orgs.json"
-REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6380/0")
 
 
 def period_for(label: str | None) -> tuple[str, int]:
@@ -59,7 +57,7 @@ def reset(r: redis.Redis, label: str | None) -> None:
     if keys:
         r.unlink(*keys)
     r.unlink(USAGE_STREAM)
-    print(f"reset {REDIS_URL}: removed {len(keys)} keys + {USAGE_STREAM}")
+    print(f"reset {r}: removed {len(keys)} keys + {USAGE_STREAM}")
     seed(r, label)
 
 
@@ -77,7 +75,7 @@ def main() -> None:
     args = p.parse_args()
     if args.command == "remove" and args.period is None:
         p.error("remove needs --period")
-    COMMANDS[args.command](redis.Redis.from_url(REDIS_URL, decode_responses=True), args.period)
+    COMMANDS[args.command](connect_sync(), args.period)
 
 
 if __name__ == "__main__":

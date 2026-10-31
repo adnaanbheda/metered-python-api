@@ -2,7 +2,6 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-import redis.asyncio as redis
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
@@ -10,20 +9,13 @@ from admin import router as admin_router
 from middlewares.identity import IdentityMiddleware
 from middlewares.meter import MeterMiddleware
 from operations import router as operations_router
-from store import QuotaStore
+from store import QuotaStore, connect
 from usage import router as usage_router
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "WARNING"))
 
 load_dotenv()
-REDIS_URL = os.environ.get("REDIS_URL") or ""
-# Per process. redis-py's default (100) raises MaxConnectionsError instead of waiting once
-# exhausted, which surfaced as 500s under ~256 concurrent requests on one replica.
-REDIS_MAX_CONNECTIONS = int(os.environ.get("REDIS_MAX_CONNECTIONS") or 512)
-
-redis_client = redis.Redis.from_url(
-    REDIS_URL, decode_responses=True, max_connections=REDIS_MAX_CONNECTIONS
-)
+redis_client = connect()
 quota_store = QuotaStore(redis_client)
 
 
