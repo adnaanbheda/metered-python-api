@@ -1,10 +1,13 @@
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 from redis.asyncio import Redis
 
-from exceptions import BY_STATUS, QuotaExceeded
+from exceptions import BY_STATUS, QuotaError, QuotaExceeded
 from utils.periods import current_period
+
+log = logging.getLogger(__name__)
 
 # Reservation TTL doubles as the retry dedupe window.
 RESERVATION_TTL = 300
@@ -68,7 +71,9 @@ class QuotaStore:
         if status == "exceeded":
             raise QuotaExceeded(feature, int(used), int(limit))
         if status != "ok":
-            raise BY_STATUS[status]()
+            exc = BY_STATUS.get(status)
+            # reserve.lua grew a status this code doesn't know: fail as a JSON 500, not a KeyError
+            raise exc() if exc else QuotaError(f"unexpected reserve status {status!r}")
 
         return Reservation(
             status=status,
@@ -82,14 +87,23 @@ class QuotaStore:
             reservation_key=reservation_key,
         )
 
-    async def commit(self, r: Reservation) -> None:
-        await self._commit(
+    # Both return False when the reservation is no longer 'reserved': in the
+    # middleware that means it expired mid-request (RESERVATION_TTL), so the
+    # charge stays on the counter with no usage event / no refund.
+    async def commit(self, r: Reservation) -> bool:
+        ok = await self._commit(
             keys=[r.reservation_key, USAGE_STREAM],
             args=[r.org_id, r.feature, r.request_id, r.period, USAGE_STREAM_MAXLEN],
         )
+        if not ok:
+            log.warning("commit skipped, reservation not live: %s", r.reservation_key)
+        return bool(ok)
 
-    async def refund(self, r: Reservation) -> None:
-        await self._refund(keys=[r.reservation_key, r.usage_key])
+    async def refund(self, r: Reservation) -> bool:
+        ok = await self._refund(keys=[r.reservation_key, r.usage_key])
+        if not ok:
+            log.warning("refund skipped, reservation not live: %s", r.reservation_key)
+        return bool(ok)
 
     @staticmethod
     def features_key(org_id: str, period: str) -> str:
