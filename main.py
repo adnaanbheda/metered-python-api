@@ -14,8 +14,13 @@ from usage import router as usage_router
 
 load_dotenv()
 REDIS_URL = os.environ.get("REDIS_URL") or ""
+# Per process. redis-py's default (100) raises MaxConnectionsError instead of waiting once
+# exhausted, which surfaced as 500s under ~256 concurrent requests on one replica.
+REDIS_MAX_CONNECTIONS = int(os.environ.get("REDIS_MAX_CONNECTIONS") or 512)
 
-redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+redis_client = redis.Redis.from_url(
+    REDIS_URL, decode_responses=True, max_connections=REDIS_MAX_CONNECTIONS
+)
 quota_store = QuotaStore(redis_client)
 
 

@@ -20,6 +20,7 @@ services:
     build: .
     environment:
       REDIS_URL: redis://redis:6379/0
+      REDIS_MAX_CONNECTIONS: ${REDIS_MAX_CONNECTIONS:-512}
     depends_on:
       redis:
         condition: service_healthy
