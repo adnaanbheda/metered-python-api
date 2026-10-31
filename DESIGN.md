@@ -79,10 +79,11 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 6. If network failure causes a request to not be received by the client, they remain charged and don't
 7. nit: Ideally all code should be native to Python but since Redis scripting requires Lua, we have some source files that have lua scripting here. Can use something like this: https://github.com/IgnaceMaes/redis-lua-py, not a popular package, but their README shows our usecase explicitly, wary: more dependencies.
 8. Local redis required to run pytest, bummer but because of the lua scripts this adds some friction to the dev loop. Fixtures can work but they would be limiting as well.
-9. We can use fakeredis to do this, it has a lua interpreter!
+9. We can use fakeredis to do this, it has a lua interpreter!(CHOSEN)
 10. Scenarios which can fail the reserve/refund model.
     a. Redis timeouts / connection issues / clients disconnecting mid-request
     b. Checks needed for enforcement under load
+    c. A reservation that expires mid-request leaks or double-charges quota, and it gets logged, not fixed.
 
 ## Future work / scaling
 (What changes at 10× scale.)
