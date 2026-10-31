@@ -12,6 +12,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from schemas import BatchRequest, ErrorResponse
 from store import QuotaStore
+from utils.asgi import read_body, replay_body
 
 
 # TODO: config file to define features without re-deployments
@@ -80,32 +81,6 @@ def fingerprint(scope: Scope, body: bytes) -> str:
         [scope["method"].encode(), scope["path"].encode(), query.encode(), body]
     )
     return hashlib.sha256(raw).hexdigest()[:16]
-
-
-async def read_body(receive: Receive) -> bytes | None:
-    """Buffer the full request body. None if the client disconnected."""
-    chunks = []
-    while True:
-        message = await receive()
-        if message["type"] == "http.disconnect":
-            return None
-        chunks.append(message.get("body", b""))
-        if not message.get("more_body", False):
-            return b"".join(chunks)
-
-
-def replay_body(body: bytes, receive: Receive) -> Receive:
-    """Hand the buffered body to the app once, then fall through to the real receive."""
-    sent = False
-
-    async def replay() -> Message:
-        nonlocal sent
-        if not sent:
-            sent = True
-            return {"type": "http.request", "body": body, "more_body": False}
-        return await receive()
-
-    return replay
 
 
 class MeterMiddleware:
