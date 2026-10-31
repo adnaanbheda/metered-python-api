@@ -10,11 +10,10 @@ import subprocess
 from pathlib import Path
 
 import pytest
-import redis.asyncio as redis
 from httpx import AsyncClient
 
 from seed import load_orgs
-from store import QuotaStore, current_period
+from store import QuotaStore, connect, current_period
 
 ROOT = Path(__file__).resolve().parents[2]
 STAGE_PORT = 8090
@@ -37,7 +36,7 @@ def stack():
 @pytest.fixture
 async def redis_client(stack):
     # 127.0.0.1, not localhost: Windows tries ::1 first and the port is bound IPv4-only
-    r = redis.Redis(host="127.0.0.1", port=REDIS_PORT, decode_responses=True)
+    r = connect(f"redis://127.0.0.1:{REDIS_PORT}/0")
     await r.flushdb()
     period, expire_at = current_period()
     pipe = r.pipeline()
