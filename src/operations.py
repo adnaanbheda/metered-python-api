@@ -3,7 +3,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from mock_data import CONTAINERS, SAILINGS, SHIPMENTS
-from schemas import BatchRequest
+from schemas import (
+    BatchRequest,
+    ContainerTrackingOp,
+    Operation,
+    SailingScheduleOp,
+    ShipmentDataOp,
+)
 from swagger import examples, org_id_header, request_id_header
 
 LANES = list(dict.fromkeys((s["origin"], s["destination"]) for s in SAILINGS))[:5]
@@ -78,6 +84,23 @@ async def shipment_data(
     return find_shipment(shipment_id)
 
 
+def run_operation(op: Operation) -> dict:
+    match op:
+        case ContainerTrackingOp():
+            return find_container(op.container_id)
+        case SailingScheduleOp():
+            return find_sailings(op.origin, op.destination)
+        case ShipmentDataOp():
+            return find_shipment(op.shipment_id)
+
+
 @router.post("/batch")
 async def batch(req: BatchRequest):
-    return {"operations": req.operations}
+    # all_or_nothing: one failed op fails the batch, so the meter refunds the whole cost
+    results = []
+    for i, op in enumerate(req.operations):
+        try:
+            results.append(run_operation(op))
+        except HTTPException as e:
+            raise HTTPException(e.status_code, f"operation {i}: {e.detail}") from e
+    return {"results": results}

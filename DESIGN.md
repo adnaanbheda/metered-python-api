@@ -42,6 +42,9 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 4. Balance stored separate or same as Redis? (DEFERRED, see Future work 1)
     a. Postgres stores the organization's limit
 5. Redis cluster necessary if scale's required, bucket keys to nodes based on hashing
+6. Batches are all-or-nothing and single feature (CHOSEN). Cost is the op count, reserved as one unit: one reservation key, one stream event with the total cost. A batch spanning features returns `501 mixed_batch_unsupported` (DEFERRED, see Future work 3).
+    a. Single feature keeps `reserve.lua`/`commit.lua`/`refund.lua` on one usage key, the same scripts as a single request.
+    b. Atomicity holds for single-feature batches: `reserve.lua` checks and charges the whole batch cost in one script run, so no other instance lands in between. Parallel batches near the limit never go over it and a rejected batch charges nothing (BA11, `test_batches_race_near_the_limit`, re-run across replicas in `tests/integration`).
 
 ## Correctness / failure handling
 (Invariants, failure modes, retries, recovery.)
@@ -76,7 +79,7 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 (Breaking points, known gaps.)
 
 1. Response validation, i.e. bad responses from vendors should they use up the quota?
-2. Request requires N units, org has M, What happens in the case of M < N, partial request fulfilment or all-or-nothing?
+2. Request requires N units, org has M < N: all-or-nothing, the batch gets 429 and nothing is charged. Partial request fulfilment dropped: ops are read-only so running the first M would be safe, but billing gets complicated (reserve has to return a grant, callers resend skipped ops under a new id, mixed features need prefix rules).
 3. Do monthly quotas transfer ?
 4. If opted for org:feature:limit:period and org:feature:usage:period
     a. if the renewal job hasn't run yet, at 00:00:01 the API can say that there's no quota
@@ -96,6 +99,11 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 1. Postgres deployment that houses usage logs, billing and entitlements control for an organization.
     a. houses key limits per feature that get transposed to Redis for a period
 2. If the client never received a successful response due to network failure, we charge them regardless. To solve this, we can store cached responses for 60 seconds in Redis (compressed with zstd/gzip). Overkill for v1.
+3. Multi-feature batches: one multi-key reserve over every feature's limit/usage key.
+    a. `reserve.lua` checks every feature before writing anything, so one feature over its limit (or unprovisioned) charges none of them, then `INCRBY`s each. Reservation hash keeps a `cost:<feature>` field per feature.
+    b. `commit.lua` writes one stream event per feature, so billing stays per feature. `refund.lua` `DECRBY`s each usage key from its `cost:<feature>`.
+    c. Usage keys go in KEYS, not built inside Lua, and all share the `{org}` hash tag, so the script stays in one Cluster slot.
+    d. A single request becomes a batch of one feature, one code path.
 
 ## Testing environment
 

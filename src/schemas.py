@@ -49,4 +49,4 @@ Operation = Annotated[
 
 class BatchRequest(BaseModel):
     operations: Annotated[list[Operation], Field(min_length=1)]
-    mode: Literal["all_or_nothing", "partial_fulfillment"]
+    mode: Literal["all_or_nothing"]

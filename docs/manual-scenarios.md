@@ -119,11 +119,10 @@ Cost is the number of operations. A batch is reserved as one unit: one reservati
 | BA9 | Same batch, keys reordered / whitespace changed | BA1, then the same body with `mode` first and extra spaces, same id | `200`, then `409 already_processed` | usage `3` (canonical JSON fingerprint) |
 | BA10 | Same id, different batch | BA1, then 2× container-tracking with the same id | `200`, then `422 request_id_reused` | usage `3` |
 | BA11 | Concurrent batches near the limit | `acme` shipment-data (limit 20): 10 parallel batches of 3 ops | six `200`, four `429` | usage `18`, never above `20` |
-| BA12 | `partial_fulfillment` mode | `tiny`, 2× container-tracking, `"mode": "partial_fulfillment"` | currently `429` (mode not implemented, treated as all-or-nothing) | usage `0` |
+| BA12 | `partial_fulfillment` mode | `tiny`, 2× container-tracking, `"mode": "partial_fulfillment"` | `422` (only `all_or_nothing` is accepted) | nothing written |
+| BA13 | One unknown id in a batch | `acme`, container-tracking `MSCU1719583`, `XXXU0000000`, `MSCU1719583` | `404`, detail starts `operation 1:` | usage `0`, no reservation key, no stream entry (whole batch refunded) |
 
 ## Known gaps found while writing these
 
-- Operation handlers echo their input and don't call `find_container` / `find_shipment`, so unknown ids return `200` instead of `404`. Refunds can only be exercised through validation failures (B12, C6) for now.
-- `partial_fulfillment` is accepted but behaves like `all_or_nothing` (BA12).
 - Mixed-feature batches are rejected with `501` until multi-key reserve lands (BA4).
 - `X-Org-Id` is only checked for presence; there's no format validation, and unknown orgs surface as `403 quota_not_provisioned` (B10).

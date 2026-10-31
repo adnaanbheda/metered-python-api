@@ -17,7 +17,7 @@ from exceptions import (
     RequestInProgress,
 )
 from middlewares.meter import MAX_REQUEST_ID_LEN, REQUEST_ID_HEADER, fingerprint
-from store import QuotaStore, current_period
+from store import USAGE_STREAM, QuotaStore, current_period
 
 CT, FEATURE = "/container_tracking", "container-tracking"
 CONTAINER = {"container_id": "MSCU1719583"}
@@ -198,3 +198,30 @@ async def test_malformed_batch_422_not_charged(client, redis_client):
     )
     assert resp.status_code == 422, resp.text
     assert await used(redis_client, "acme") == 0
+
+
+def tracking_batch(*container_ids):
+    ops = [{"feature": FEATURE, "container_id": cid} for cid in container_ids]
+    return {"mode": "all_or_nothing", "operations": ops}
+
+
+async def test_batch_runs_every_op_in_order(client, redis_client):
+    ids = ["MAEU0109031", "MSCU1719583", "MSCU3668136"]
+    resp = await client.post(
+        "/batch", json=tracking_batch(*ids), headers={"X-Org-Id": "acme"}
+    )
+    assert resp.status_code == 200, resp.text
+    assert [r["container_id"] for r in resp.json()["results"]] == ids
+    assert await used(redis_client, "acme") == 3
+
+
+async def test_batch_one_unknown_op_fails_and_refunds_all(client, redis_client):
+    body = tracking_batch("MSCU1719583", "XXXU0000000", "MSCU1719583")
+    resp = await client.post(
+        "/batch", json=body, headers={"X-Org-Id": "acme", REQUEST_ID_HEADER: "miss"}
+    )
+    assert resp.status_code == 404, resp.text
+    assert resp.json()["detail"].startswith("operation 1:")
+    assert await used(redis_client, "acme") == 0
+    assert not await redis_client.exists(QuotaStore.reservation_key("acme", "miss"))
+    assert await redis_client.xlen(USAGE_STREAM) == 0
