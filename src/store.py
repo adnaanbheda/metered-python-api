@@ -1,7 +1,10 @@
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
+import redis
 from redis.asyncio import Redis
 
 from exceptions import BY_STATUS, QuotaError, QuotaExceeded
@@ -23,6 +26,29 @@ LUA_DIR = Path(__file__).parent / "lua"
 
 def load_lua(name: str) -> str:
     return (LUA_DIR / f"{name}.lua").read_text(encoding="utf-8")
+
+
+def _from_url(cls: Any, url: str | None) -> Any:
+    """One client config for the app, benchmarks and scripts. Env is read per call: main.py loads
+    .env after importing this module."""
+    return cls.from_url(
+        url or os.environ.get("REDIS_URL") or "redis://127.0.0.1:6380/0",
+        decode_responses=True,
+        # Per process. redis-py's default (100) raises MaxConnectionsError instead of waiting once
+        # exhausted, which surfaced as 500s under ~256 concurrent requests on one replica.
+        max_connections=int(os.environ.get("REDIS_MAX_CONNECTIONS") or 512),
+        # A dropped reply fails the call instead of hanging it (seen via Docker Desktop's
+        # host.docker.internal).
+        socket_timeout=5,
+    )
+
+
+def connect(url: str | None = None) -> Redis:
+    return _from_url(Redis, url)
+
+
+def connect_sync(url: str | None = None) -> redis.Redis:
+    return _from_url(redis.Redis, url)
 
 
 @dataclass
@@ -57,6 +83,10 @@ class QuotaStore:
     @staticmethod
     def reservation_key(org_id: str, request_id: str) -> str:
         return f"res:{{{org_id}}}:{request_id}"
+
+    @staticmethod
+    def features_key(org_id: str, period: str) -> str:
+        return f"quota:{{{org_id}}}:features:{period}"
 
     async def reserve(
         self, org_id: str, feature: str, request_id: str, cost: int, fingerprint: str
@@ -104,10 +134,6 @@ class QuotaStore:
         if not ok:
             log.warning("refund skipped, reservation not live: %s", r.reservation_key)
         return bool(ok)
-
-    @staticmethod
-    def features_key(org_id: str, period: str) -> str:
-        return f"quota:{{{org_id}}}:features:{period}"
 
     async def get_usage(self, org_id: str):
         period, _ = current_period()
