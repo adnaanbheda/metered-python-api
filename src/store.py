@@ -1,5 +1,6 @@
 import logging
 import os
+import socket
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,8 @@ log = logging.getLogger(__name__)
 RESERVATION_TTL = 300
 USAGE_STREAM = "usage_events"
 USAGE_STREAM_MAXLEN = 1_000_000
+# Tags each usage event with the instance that committed it; in compose, the replica's container id.
+INSTANCE = socket.gethostname()
 
 # Redis command per key type, for dump_org.
 READERS = {"string": "get", "hash": "hgetall", "set": "smembers"}
@@ -123,7 +126,14 @@ class QuotaStore:
     async def commit(self, r: Reservation) -> bool:
         ok = await self._commit(
             keys=[r.reservation_key, USAGE_STREAM],
-            args=[r.org_id, r.feature, r.request_id, r.period, USAGE_STREAM_MAXLEN],
+            args=[
+                r.org_id,
+                r.feature,
+                r.request_id,
+                r.period,
+                USAGE_STREAM_MAXLEN,
+                INSTANCE,
+            ],
         )
         if not ok:
             log.warning("commit skipped, reservation not live: %s", r.reservation_key)

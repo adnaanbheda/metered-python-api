@@ -12,13 +12,16 @@ With no command, runs the defaults on a grid (full | quick):
     B7  quota under the replica race           limit 10000 | 2000, 3x that many requests, unthrottled;
                                                passes if exactly `limit` got 200 (rest 429) and the
                                                Redis usage counter agrees
+    B8  quota never over-served, contended     limits 1000/5000/10000 | 1000, 3x+5 requests each, -c 512,
+                                               unthrottled; passes if exactly `limit` got 200 (rest 429)
+                                               and the Redis usage counter and usage stream both agree
   rates: 2000/5000/10000 | 2000/5000
 
 Run with the stack up (docker compose up -d --wait):
     uv run scripts/bench_suite.py                          # full grid (~15 min)
     uv run scripts/bench_suite.py --grid quick             # smaller grid (~5 min)
     uv run scripts/bench_suite.py --only redis             # B1-B3
-    uv run scripts/bench_suite.py --only api               # B4-B6
+    uv run scripts/bench_suite.py --only api               # B4-B8
     uv run scripts/bench_suite.py --servers granian        # api bench on one server
     uv run scripts/bench_suite.py --rates 2000 4000 6000   # custom B3-B5 sweep
     uv run scripts/bench_suite.py --no-rates               # B4-B5 unthrottled, B3 skipped
@@ -31,7 +34,7 @@ One custom run instead of the defaults:
 
 Both load generators run inside the compose network (store_bench.py in a one-off api container, oha as
 its own container), so Docker Desktop's port forwarding is never in the path. Output goes to
-bench-results/<timestamp>/: redis/, api/ and quota/ with one JSON per run, named after its flags
+bench-results/<timestamp>/: redis/, api/, quota/ and race/ with one JSON per run, named after its flags
 (B2-n5000-c16-procs4, custom-granian-metered-20s-c512-q8000), plus env.txt and summary.md.
 """
 
@@ -43,6 +46,7 @@ import platform
 import subprocess
 import sys
 import time
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -52,7 +56,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT / "src"), str(ROOT / "scripts")]
 
 from bench_report import results, summary  # noqa: E402
-from store import QuotaStore, connect_sync, current_period  # noqa: E402
+from store import USAGE_STREAM, QuotaStore, connect_sync, current_period  # noqa: E402
 from store_bench import FEATURE, ORG, cleanup, print_table, provision  # noqa: E402
 from store_bench import add_args as add_store_bench_args  # noqa: E402
 
@@ -74,13 +78,24 @@ class Grid:
     sustained_duration: str  # B6
     pause: int  # seconds after each api run
     quota_limit: int  # B7
+    race_limits: list[int]  # B8
 
 
 GRIDS = {
-    "full": Grid([2000, 5000, 10000], [1, 2, 4, 8], 5000, 20, "20s", "60s", 10, 10000),
-    "quick": Grid([2000, 5000], [1, 4], 2000, 5, "5s", "15s", 3, 2000),
+    "full": Grid(
+        [2000, 5000, 10000],
+        [1, 2, 4, 8],
+        5000,
+        20,
+        "20s",
+        "60s",
+        10,
+        10000,
+        [1000, 5000, 10000],
+    ),
+    "quick": Grid([2000, 5000], [1, 4], 2000, 5, "5s", "15s", 3, 2000, [1000]),
 }
-QUOTA_ORG = "bench-quota"  # B7's own org, so its small limit never throttles B4-B6
+QUOTA_ORG = "bench-quota"  # B7/B8's own org, so its small limit never throttles B4-B6
 
 OHA_IMAGE = "ghcr.io/hatoo/oha:latest"
 OHA_NAME = f"bench-oha-{os.getpid()}"  # so Ctrl+C can stop the running oha
@@ -293,6 +308,71 @@ def b7_api_quota(g: Grid, server: str) -> None:
     time.sleep(g.pause)
 
 
+def b8_api_race(g: Grid, server: str) -> None:
+    """tests/integration/test_burst_never_overserves at load: per limit, 3x+5 requests race for it,
+    512 in flight across the replicas. -n, not -z, as in B7. Beyond B7:
+      - usage stream: exactly `limit` units charged, committed by more than one replica (`instance`)
+      - reservations: exactly `limit` keys, all `committed`. reserve.lua writes one per granted
+        request and none for a 429, commit.lua marks it committed, refund.lua deletes it; so any
+        other count or state is a leaked reserve, a missed commit or a refund that shouldn't be."""
+    r = host_redis()
+    for limit in g.race_limits:
+        n = 3 * limit + 5
+        cleanup(r, QUOTA_ORG)
+        provision(r, QUOTA_ORG, limit)
+        # Only this run's stream entries: everything after the current last one.
+        last = r.xrevrange(USAGE_STREAM, count=1)
+        since = f"({last[0][0]}" if last else "-"
+        try:
+            name, report = run_api_bench(
+                "B8", server, "metered", org=QUOTA_ORG, n=n, c=512
+            )
+            # Refunds and commits land just after the response is sent; let them settle.
+            time.sleep(1)
+            used = int(
+                r.get(QuotaStore.usage_key(QUOTA_ORG, FEATURE, current_period()[0]))
+                or 0
+            )
+            events = [
+                f
+                for _, f in r.xrange(USAGE_STREAM, min=since)
+                if f["org_id"] == QUOTA_ORG
+            ]
+            charged = sum(int(f["cost"]) for f in events)
+            per_replica = Counter(f.get("instance") for f in events)
+            states = Counter(
+                r.hget(k, "state")
+                for k in r.scan_iter(match=f"res:{{{QUOTA_ORG}}}:*", count=1000)
+            )
+        finally:
+            cleanup(r, QUOTA_ORG)
+        codes = report.get("statusCodeDistribution", {})
+        ok, rejected = codes.get("200", 0), codes.get("429", 0)
+        check = {
+            "limit": limit,
+            "requests": n,
+            "ok": ok,
+            "rejected": rejected,
+            "other": n - ok - rejected,
+            "used": used,
+            "charged": charged,
+            "reservations": dict(states),
+            "replicas": len(per_replica),
+            "commits_per_replica": sorted(per_replica.values(), reverse=True),
+            "seconds": round(report["summary"]["total"], 2),
+        }
+        check["pass"] = (
+            ok == used == charged == limit
+            and check["other"] == 0
+            and states == {"committed": limit}
+            and len(per_replica) > 1
+            and None not in per_replica
+        )
+        log(f"{name}: {'PASS' if check['pass'] else 'FAIL'} {check}")
+        save("race", name, json.dumps(check))
+        time.sleep(g.pause)
+
+
 def record_env() -> None:
     fmt = (
         "{{.ServerVersion}}, {{.OperatingSystem}}, {{.NCPU}} CPUs, {{.MemTotal}} bytes"
@@ -349,6 +429,7 @@ def run_defaults(args: argparse.Namespace) -> None:
         b5_api_metered(g, server, rates)
         b6_api_sustained(g, server)
         b7_api_quota(g, server)
+        b8_api_race(g, server)
 
     if args.only != "api":
         # store_bench.py provisions and deletes its own bench org(s), so run it before provisioning.
@@ -399,7 +480,8 @@ def main() -> None:
 
     print(summary(RES))
     log("done")
-    if failed := [name for name, check in results(RES, "quota") if not check["pass"]]:
+    checks = [*results(RES, "quota"), *results(RES, "race")]
+    if failed := [name for name, check in checks if not check["pass"]]:
         sys.exit(f"quota check failed: {', '.join(failed)}")
 
 

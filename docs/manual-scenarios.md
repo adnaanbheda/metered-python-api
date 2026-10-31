@@ -52,7 +52,7 @@ XREVRANGE usage_events + - COUNT 5
 
 | # | Scenario | Requests | Expected response | Expected Redis |
 |---|----------|----------|-------------------|----------------|
-| B1 | Successful call is charged | `ct acme a` | `200`, response header `X-Request-Id: a` | usage `1`; `res:{acme}:a` has `state=committed`, `cost=1`, TTL ≤ 300; `XLEN usage_events` = 1 with `org_id=acme feature=container-tracking request_id=a period=$P cost=1` |
+| B1 | Successful call is charged | `ct acme a` | `200`, response header `X-Request-Id: a` | usage `1`; `res:{acme}:a` has `state=committed`, `cost=1`, TTL ≤ 300; `XLEN usage_events` = 1 with `org_id=acme feature=container-tracking request_id=a period=$P cost=1 instance=<replica hostname>` |
 | B2 | Usage key expiry | after B1: `TTL` on usage key | — | Positive TTL; `EXPIRETIME` = 00:00 UTC on the 2nd of next month |
 | B3 | Limit key untouched | after B1: `GET` limit key | — | Still `100` |
 | B4 | No request id given | `ct acme` (no `X-Request-Id`) | `200`, server-generated 32-char hex `X-Request-Id` in response | usage `1`; `res:{acme}:<generated id>` exists, committed |
