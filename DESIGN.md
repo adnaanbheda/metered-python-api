@@ -74,6 +74,21 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 5. oha seems to be a good alternative.
 6. Benchmark results cap at 4.5Kops/s for unmetered routes as of now, but benchmarks can be limited in queuing requests, adding multi process benchmarking as well as trying granian to reach peak 10K ops/s
 7. httpx bottleneck @ 200ops/s, oha gives real benchmark results
+8. Concurrency proof under load: B8 in `scripts/bench_suite.py` (CHOSEN). The assignment asks for "a concurrency test that proves quota is never over-served, not just one that passes with no contention", and for concurrent correctness to be demonstrated under load. In-process tests can't race (Limitations 9a), so this runs against the real stack.
+    a. Setup: one org with limit L (1000, 5000, 10000). oha sends 3L+5 requests unthrottled, 512 in flight, nginx round-robins them across 8 replicas sharing one Redis. Every replica races for the last units, the assignment's "500 left, 500 units at once across instances", oversubscribed 3x.
+    b. Passes only if: exactly L got 200 and the rest 429, the Redis usage counter is L, the usage stream charged exactly L units (only this run's events), and there are exactly L reservation keys, all `committed`. Over-serving shows up as 200s > L or usage > L, a lost or double refund as usage ≠ 200s.
+    c. Reserve/commit/refund each leave a trace on the reservation key: `reserve.lua` writes one only for a granted request (a 429 writes nothing), `commit.lua` marks it `committed`, `refund.lua` deletes it. So {committed: L} means L reserves, L commits, no refunds, nothing left `reserved`.
+    d. Contention is real, and shown from Redis, not assumed: every usage event carries the `instance` (container hostname) that committed it, and B8 requires more than one. In practice all 8 replicas commit, within ~10% of each other. 512 connections over 8 processes, 30K requests in ~6s. A read-then-write check would let several replicas read the same remaining count and all charge it.
+    e. Result (uvicorn, 8 replicas, 2026-10-31):
+
+        | Limit | Requests | 200 | 429 | Redis used | Stream charged | Reservations | Replicas | Commits per replica |
+        | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+        | 1000 | 3005 | 1000 | 2005 | 1000 | 1000 | 1000 committed | 8 | 147, 141, 135, 132, 127, 127, 97, 94 |
+        | 5000 | 15005 | 5000 | 10005 | 5000 | 5000 | 5000 committed | 8 | 666, 662, 658, 649, 644, 584, 576, 561 |
+        | 10000 | 30005 | 10000 | 20005 | 10000 | 10000 | 10000 committed | 8 | 1283, 1281, 1280, 1271, 1268, 1240, 1199, 1178 |
+
+    f. Same assertions as `test_burst_never_overserves` in `tests/integration` (3 replicas), at load. oha only reports status counts, so one check stays in the integration suite: every 429 saw used == limit, i.e. nothing was rejected while units were left.
+    g. Pending: mutation check, swap `reserve.lua` for a non-atomic GET then INCRBY and confirm B8 fails. Until then B8 passing doesn't by itself show it would catch a race.
 
 ## Limitations & risks
 (Breaking points, known gaps.)
@@ -88,6 +103,7 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 7. nit: Ideally all code should be native to Python but since Redis scripting requires Lua, we have some source files that have lua scripting here. Can use something like this: https://github.com/IgnaceMaes/redis-lua-py, not a popular package, but their README shows our use case explicitly, wary: more dependencies.
 8. Local Redis required to run pytest, bummer but because of the lua scripts this adds some friction to the dev loop. Fixtures can work but they would be limiting as well.
 9. We can use fakeredis to do this, it has a lua interpreter! (CHOSEN)
+    a. Note: in-process can't test concurrency. fakeredis never yields to the event loop and httpx `ASGITransport` runs each request to completion, so 50 gathered requests run one at a time (measured: peak 1 live reservation). Races pass for free. Concurrency tests (`tests/integration/test_concurrency.py`) run only in Docker: nginx + 3 replicas + real Redis.
 10. Scenarios which can fail the reserve/refund model.
     a. Redis timeouts / connection issues / clients disconnecting mid-request
     b. Checks needed for enforcement under load
