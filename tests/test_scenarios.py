@@ -4,7 +4,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-from mock_data import MOCKS
 from store import QuotaStore, current_period
 
 SCENARIOS_DIR = Path(__file__).parent / "scenarios"
