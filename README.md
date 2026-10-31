@@ -36,3 +36,12 @@ uv run pytest -m integration     # full compose stack: concurrency across replic
 ```
 
 Scenarios live in [tests/scenarios/](tests/scenarios/) as prose + YAML; manual checklist in [docs/manual-scenarios.md](docs/manual-scenarios.md).
+
+## Bench
+
+uv run scripts/bench_suite.py --servers granian     # one server
+uv run scripts/bench_suite.py --skip-meter          # skip meter-only runs (B1-B3)
+uv run scripts/bench_suite.py --servers             # meter-only runs only
+uv run scripts/bench_suite.py --metered-rates 2000 4000 6000
+
+
