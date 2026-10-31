@@ -13,7 +13,7 @@ API with middlewares that reach to redis to make quota checks
 
 Redis houses quota limits, i.e. orgID:feature:limit:period (mutation discouraged)
 Redis houses another counter that stores the usage key with a period, i.e. orgID:feature:usage:period
-Reset will change the period and therefore the keys, new month's renewal explicitly handled by another billing/renewal api/store
+Reset will change the period and therefore the keys, new month's renewal explicitly handled by another billing/renewal api/store (DEFERRED, additional Postgres required)
 
 Atomicity with reserve/refund model with Redis's lua level scripting
 reserve when the request received, refund if the request fails.
@@ -31,6 +31,7 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 ## Goals
 
 1. Latency: <10ms per operation.
+    a. Correction: Overhead should be <10ms per operation. i.e. redis reserve/refund, atomicity check round trip.
 
 ## Key Decisions
 
@@ -61,6 +62,10 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 1. Integration tests, including redis spinup
 2. Quota exhaustion validation, negative quota should be absolutely prohibited.
 3. Reset updates the quotas
+4. ab to stress load the system, checking if there's a more apt tool for python development.
+5. oha seems to be a good alternative.
+6. Benchmark results cap at 4.5Kops/s for unmetered routes as of now, but benchmarks can be limited in queuing requests, adding multi process benchmarking as well as trying granian to reach peak 10K ops/s
+7. httpx bottleneck @ 200ops/s, oha gives real benchmark results
 
 ## Limitations & risks
 (Where it breaks, known gaps.)
@@ -75,6 +80,9 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 7. nit: Ideally all code should be native to Python but since Redis scripting requires Lua, we have some source files that have lua scripting here. Can use something like this: https://github.com/IgnaceMaes/redis-lua-py, not a popular package, but their README shows our usecase explicitly, wary: more dependencies.
 8. Local redis required to run pytest, bummer but because of the lua scripts this adds some friction to the dev loop. Fixtures can work but they would be limiting as well.
 9. We can use fakeredis to do this, it has a lua interpreter!
+10. Scenarios which can fail the reserve/refund model.
+    a. Redis timeouts / connection issues / clients disconnecting mid-request
+    b. Checks needed for enforcement under load
 
 ## Future work / scaling
 (What changes at 10× scale.)
@@ -98,6 +106,8 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 ## Appendix
 AI-assisted parts, how to run, raw benchmark data.
 
+Benchmark results and methodology: [docs/benchmarks.md](docs/benchmarks.md).
+
 Design and key decisions are mine, the following implementations were assisted by AI.
 
 The commit history is separated by chunks of code, v1 will mark usable code.
@@ -110,3 +120,4 @@ The commit history is separated by chunks of code, v1 will mark usable code.
     e. Infra scaffolding i.e. docker compose yaml
     f. Swagger changes
     g. README document with a quickstart added
+    h. Benchmarking scaffolding, design and tools decided by me i.e. oha, host/docker performance differences, latency correction, fixed qps (if any).
