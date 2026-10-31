@@ -8,6 +8,7 @@ tests for batch
 tests for retrying
 tests for correct exceptions being raised
 tests for correct responses being sent on failures
+tests to check quota enforcement under sustained/peak load
 
 
 ## Markdown scenarios vs pytest

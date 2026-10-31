@@ -51,18 +51,29 @@ Needs the stack up (`docker compose up -d --wait`). Load runs from inside the co
 | B6 | sustained 2k req/s metered, 60 s |
 
 ```sh
-uv run scripts/bench_suite.py                                 # everything, uvicorn + granian (~25 min)
-uv run scripts/bench_suite.py --servers granian               # B1-B6, one server
-uv run scripts/bench_suite.py --servers                       # B1-B3 only, no HTTP runs
-uv run scripts/bench_suite.py --skip-meter --servers granian  # B4-B6 only
-uv run scripts/bench_suite.py --metered-rates 2000 4000 6000  # custom B5 sweep
+uv run scripts/bench_suite.py                                 # defaults B1-B6, uvicorn + granian (~15 min)
+uv run scripts/bench_suite.py --grid quick                    # smaller grid: fewer rates/procs, 5 s runs (~5 min)
+uv run scripts/bench_suite.py --only redis                    # B1-B3, redis bench
+uv run scripts/bench_suite.py --only api                      # B4-B6, api bench
+uv run scripts/bench_suite.py --servers granian               # B1-B6, api bench on one server
+uv run scripts/bench_suite.py --rates 2000 4000 6000          # custom B3-B5 sweep
+uv run scripts/bench_suite.py --no-rates                      # B4-B5 unthrottled, B3 skipped
 ```
 
-Raw output and a `summary.md` land in `bench-results/<timestamp>/`.
+One custom run instead of the defaults, same containers and output:
+
+```sh
+uv run scripts/bench_suite.py redis -n 20000 -c 64 --procs 4         # store_bench.py flags
+uv run scripts/bench_suite.py redis --op refund --rate 3000 -n 60000
+uv run scripts/bench_suite.py api --route unmetered -q 8000          # per server
+uv run scripts/bench_suite.py api -c 1024 -z 30s --servers granian   # no -q: unthrottled
+```
+
+Raw output (`redis/`, `api/`) and a `summary.md` land in `bench-results/<timestamp>/`. Rebuild the summary for an existing run with `uv run scripts/bench_report.py bench-results/<timestamp>`.
 
 The meter alone, without the suite (Redis published on 6381):
 
 ```sh
-PYTHONPATH=src REDIS_URL=redis://127.0.0.1:6381/0 uv run scripts/bench.py store -n 20000 -c 64
+PYTHONPATH=src REDIS_URL=redis://127.0.0.1:6381/0 uv run scripts/store_bench.py -n 20000 -c 64
 ```
 
