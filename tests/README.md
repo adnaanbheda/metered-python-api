@@ -6,6 +6,8 @@ tests for idempotency
 tests for concurrency
 tests for batch
 tests for retrying
+tests for correct exceptions being raised
+tests for correct responses being sent on failures
 
 
 ## Markdown scenarios vs pytest
