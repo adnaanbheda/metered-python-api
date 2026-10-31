@@ -11,3 +11,4 @@ wheels/
 .env
 assignment.pdf
 bench-results
+.coverage

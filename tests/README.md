@@ -9,6 +9,8 @@ tests for retrying
 tests for correct exceptions being raised
 tests for correct responses being sent on failures
 tests to check quota enforcement under sustained/peak load
+test quota enforcement at what point it starts dishing out 429, is it atomic or overserves ?
+test that checks for atomicity/concurrency and makes sure that there are no overserves near race limits / batching
 
 
 ## Markdown scenarios vs pytest

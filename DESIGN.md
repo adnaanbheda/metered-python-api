@@ -9,16 +9,16 @@ Concurrency has to be something to be taken care of, an org can call multiple AP
 
 ## Architecture
 
-API with middlewares that reach to redis to make quota checks
+API with middlewares that reach redis to make quota checks
 
 Redis houses quota limits, i.e. orgID:feature:limit:period (mutation discouraged)
 Redis houses another counter that stores the usage key with a period, i.e. orgID:feature:usage:period
 Reset will change the period and therefore the keys, new month's renewal explicitly handled by another billing/renewal api/store (DEFERRED, additional Postgres required)
 
 Atomicity with reserve/refund model with Redis's lua level scripting
-reserve when the request received, refund if the request fails.
+reserve when the request is received, refund if the request fails.
 
-Reservation through request ID, deduplication of charges + reserve / refund work through this request ID, we echo request IDs back in case of retries to nudge the client to reuse them. No reservations when vendor is failing. Comitted / Charged request ID never calls the vendor again, TTL for every request ID 5 minutes. Bounded memory usage given 10K/s with 5mins TTL. Fingerprinting the request ID so that different body with the request ID is rejected.
+Reservation through request ID, deduplication of charges + reserve / refund work through this request ID, we echo request IDs back in case of retries to nudge the client to reuse them. No reservations when vendor is failing. Committed / Charged request ID never calls the vendor again, TTL for every request ID 5 minutes. Bounded memory usage given 10K/s with 5mins TTL. Fingerprinting the request ID so that different body with the request ID is rejected.
 
 ## Requirements
 
@@ -31,15 +31,15 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 ## Goals
 
 1. Latency: <10ms per operation.
-    a. Correction: Overhead should be <10ms per operation. i.e. redis reserve/refund, atomicity check round trip.
+    a. Correction: Overhead should be <10ms per operation. i.e. Redis reserve/refund, atomicity check round trip.
 
 ## Key Decisions
 
 1. Middleware/Decorator pattern
-2. Redis/MemCache
-    a. Redis clear choice since we can script at the redis level for atommic checks
+2. Redis/MemCached
+    a. Redis clear choice since we can script at the Redis level for atomic checks
 3. Atomicity maintained at the DB level.
-4. Balance stored separate or same as Redis ? (DEFERRED, see Future work 1)
+4. Balance stored separate or same as Redis? (DEFERRED, see Future work 1)
     a. Postgres stores the organization's limit
 5. Redis cluster necessary if scale's required, bucket keys to nodes based on hashing
 
@@ -48,18 +48,18 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 
 1. Failed requests shouldn't count towards the quota
 2. Retries shouldn't count as double exhaustion of quota.
-    a. What if the retry arrives while the first request is still in process? due to client side timeouts, slow vendors can make this problem more prominent
+    a. What if the retry arrives while the first request is still in progress? due to client side timeouts, slow vendors can make this problem more prominent
 3. Writing/Reading to/from postgres on every charge not applicable, performance problem since the target is <10ms (REJECTED: latency).
-4. Redis durability important in case of failures since redis going down means that the last state of usage is the source of truth, otherwise no quota! (CHOSEN)
+4. Redis durability important in case of failures since Redis going down means that the last state of usage is the source of truth, otherwise no quota! (CHOSEN)
     a. appendonly, appendfsync everysec, maxmemory-policy noeviction
-5. Recovery path if we use postgres + redis (deferred)
-    a. if redis wiped, snapshots of usage logs give us the exact rebuild, but it can also be stale.
+5. Recovery path if we use postgres + Redis (deferred)
+    a. if Redis wiped, snapshots of usage logs give us the exact rebuild, but it can also be stale.
 
 6. Reserve then refund is redundant when 404 entries exist but behaviourally it makes sense since production environments will tend to have valid scenarios more often than not. Reserve/Refund is cheaper to always do due to Redis's fast memory storage.
 
 ## Testing & validation
 
-1. Integration tests, including redis spinup
+1. Integration tests, including Redis spinup
 2. Quota exhaustion validation, negative quota should be absolutely prohibited.
 3. Reset updates the quotas
 4. ab to stress load the system, checking if there's a more apt tool for python development.
@@ -76,10 +76,10 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 4. If opted for org:feature:limit:period and org:feature:usage:period
     a. if the renewal job hasn't run yet, at 00:00:01 the API can say that there's no quota
 5. <10ms overhead realistically difficult on 10/15K requests per second.
-6. If network failure causes a request to not be received by the client, they remain charged and don't
-7. nit: Ideally all code should be native to Python but since Redis scripting requires Lua, we have some source files that have lua scripting here. Can use something like this: https://github.com/IgnaceMaes/redis-lua-py, not a popular package, but their README shows our usecase explicitly, wary: more dependencies.
-8. Local redis required to run pytest, bummer but because of the lua scripts this adds some friction to the dev loop. Fixtures can work but they would be limiting as well.
-9. We can use fakeredis to do this, it has a lua interpreter!(CHOSEN)
+6. If network failure causes a request to not be received by the client, they remain charged and don't get refunded.
+7. nit: Ideally all code should be native to Python but since Redis scripting requires Lua, we have some source files that have lua scripting here. Can use something like this: https://github.com/IgnaceMaes/redis-lua-py, not a popular package, but their README shows our use case explicitly, wary: more dependencies.
+8. Local Redis required to run pytest, bummer but because of the lua scripts this adds some friction to the dev loop. Fixtures can work but they would be limiting as well.
+9. We can use fakeredis to do this, it has a lua interpreter! (CHOSEN)
 10. Scenarios which can fail the reserve/refund model.
     a. Redis timeouts / connection issues / clients disconnecting mid-request
     b. Checks needed for enforcement under load
@@ -89,15 +89,15 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 (What changes at 10× scale.)
 
 1. Postgres deployment that houses usage logs, billing and entitlements control for an organization.
-    a. houses key limits per feature that get transposed to redis for a period
-2. If the client never received a successful response due to network failure, we charge them regardless. To solve this, we can store cached responses for 60 seconds in redis (compressed with zstd/gzip). Overkill for v1.
+    a. houses key limits per feature that get transposed to Redis for a period
+2. If the client never received a successful response due to network failure, we charge them regardless. To solve this, we can store cached responses for 60 seconds in Redis (compressed with zstd/gzip). Overkill for v1.
 
 ## Testing environment
 
-1. VSCode tasks: Spin up service / redis instance, Seed mock data, reset mock data
+1. VSCode tasks: Spin up service / Redis instance, Seed mock data, reset mock data
 2. Scenarios for important components: idempotency, batch
 3. Manual checklist (basic metering, concurrency, idempotency, batch): [docs/manual-scenarios.md](docs/manual-scenarios.md)
-4. One shot docker compose up: api, redis, health checks, seed data
+4. One shot docker compose up: API, Redis, health checks, seed data
 
 ## Technical details
 1. uv/ruff tooling with venv
@@ -117,8 +117,9 @@ The commit history is separated by chunks of code, v1 will mark usable code.
     a. Reserve / Refund lua scripting code.
     b. Seeding data, mock scenarios scaffolding code, i.e. orgs, features, limits, manual-scenarios.
     c. SHA256 fingerprinting to match valid retries.
-    d. Router that shows all the redis keys for each org
+    d. Router that shows all the Redis keys for each org
     e. Infra scaffolding i.e. docker compose yaml
     f. Swagger changes
     g. README document with a quickstart added
     h. Benchmarking scaffolding, design and tools decided by me i.e. oha, host/docker performance differences, latency correction, fixed qps (if any).
+    i. Sanity checking, documentation checks
