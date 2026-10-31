@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 from collections import Counter
 
@@ -12,6 +13,9 @@ from store import QuotaStore
 from utils.asgi import read_body, replay_body
 from utils.fingerprint import fingerprint
 from utils.responses import error_response
+
+# Per-request outcomes log at DEBUG only: this sits in the hot path (<10ms budget).
+log = logging.getLogger(__name__)
 
 
 # TODO: config file to define features without re-deployments
@@ -91,10 +95,12 @@ class MeterMiddleware:
                 org_id, feature, request_id, cost, fingerprint(scope, body)
             )
         except QuotaError as e:
+            log.debug("rejected %s %s/%s: %s", request_id, org_id, feature, e.code)
             await error_response(e.status, e.code, e.detail, id_header)(
                 scope, receive, send
             )
             return
+        log.debug("reserved %s %s/%s cost=%d", request_id, org_id, feature, cost)
         response_status = 500  # app died before starting a response
 
         async def send_with_id(message: Message) -> None:
@@ -107,11 +113,28 @@ class MeterMiddleware:
         try:
             await self.app(scope, receive, send_with_id)
         except BaseException:
-            await asyncio.shield(self.store.refund(reservation))
+            log.debug("app raised, refunding %s", request_id)
+            try:
+                await asyncio.shield(self.store.refund(reservation))
+            except Exception:
+                # don't let a Redis failure here mask the app's own exception
+                log.exception(
+                    "refund failed, quota leaked: %s", reservation.reservation_key
+                )
             raise
 
-        # meter only successful calls
-        if 200 <= response_status < 300:
-            await self.store.commit(reservation)
-        else:
-            await self.store.refund(reservation)
+        # meter only successful calls. The response is already sent, so a Redis
+        # failure here can't change it: log with the key instead of re-raising.
+        try:
+            if 200 <= response_status < 300:
+                await self.store.commit(reservation)
+                log.debug("committed %s status=%d", request_id, response_status)
+            else:
+                await self.store.refund(reservation)
+                log.debug("refunded %s status=%d", request_id, response_status)
+        except Exception:
+            log.exception(
+                "settle failed after %d response: %s",
+                response_status,
+                reservation.reservation_key,
+            )
