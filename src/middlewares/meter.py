@@ -1,18 +1,17 @@
 import asyncio
-import hashlib
-import json
 import uuid
 from collections import Counter
-from urllib.parse import parse_qsl, urlencode
 
 from pydantic import ValidationError
 from starlette.datastructures import Headers, MutableHeaders
-from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from schemas import BatchRequest, ErrorResponse
+from exceptions import QuotaError
+from schemas import BatchRequest
 from store import QuotaStore
 from utils.asgi import read_body, replay_body
+from utils.fingerprint import fingerprint
+from utils.responses import error_response
 
 
 # TODO: config file to define features without re-deployments
@@ -32,55 +31,6 @@ FEATURE_COSTS = {
 
 REQUEST_ID_HEADER = "X-Request-Id"
 MAX_REQUEST_ID_LEN = 128
-
-REJECTIONS = {
-    "reserved": (
-        409,
-        "request_in_progress",
-        "request with this id is still processing",
-    ),
-    "committed": (
-        409,
-        "already_processed",
-        "request with this id was already processed",
-    ),
-    "mismatch": (
-        422,
-        "request_id_reused",
-        "request id reused with a different request",
-    ),
-    "exceeded": (429, "quota_exceeded", "quota exceeded"),
-    "unprovisioned": (
-        403,
-        "quota_not_provisioned",
-        "no quota provisioned for this period",
-    ),
-}
-
-
-def error_response(
-    status: int, code: str, detail: str, headers: dict[str, str]
-) -> JSONResponse:
-    body = ErrorResponse(detail=detail, code=code).model_dump()
-    return JSONResponse(body, status_code=status, headers=headers)
-
-
-def fingerprint(scope: Scope, body: bytes) -> str:
-    """Hash of method, path, sorted query and canonical JSON body, so key order and
-    whitespace don't change it."""
-    query = urlencode(
-        sorted(parse_qsl(scope["query_string"].decode(), keep_blank_values=True))
-    )
-    try:
-        body = json.dumps(
-            json.loads(body), sort_keys=True, separators=(",", ":")
-        ).encode()
-    except ValueError:
-        pass  # empty or non-JSON body: hash raw bytes
-    raw = b"|".join(
-        [scope["method"].encode(), scope["path"].encode(), query.encode(), body]
-    )
-    return hashlib.sha256(raw).hexdigest()[:16]
 
 
 class MeterMiddleware:
@@ -136,15 +86,15 @@ class MeterMiddleware:
             return
         ((feature, cost),) = costs.items()
 
-        reservation = await self.store.reserve(
-            org_id, feature, request_id, cost, fingerprint(scope, body)
-        )
-
-        if reservation.status != "ok":
-            status, code, detail = REJECTIONS[reservation.status]
-            await error_response(status, code, detail, id_header)(scope, receive, send)
+        try:
+            reservation = await self.store.reserve(
+                org_id, feature, request_id, cost, fingerprint(scope, body)
+            )
+        except QuotaError as e:
+            await error_response(e.status, e.code, e.detail, id_header)(
+                scope, receive, send
+            )
             return
-
         response_status = 500  # app died before starting a response
 
         async def send_with_id(message: Message) -> None:

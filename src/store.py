@@ -1,8 +1,10 @@
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
 from redis.asyncio import Redis
+
+from exceptions import BY_STATUS, QuotaExceeded
+from utils.periods import current_period
 
 # Reservation TTL doubles as the retry dedupe window.
 RESERVATION_TTL = 300
@@ -18,24 +20,6 @@ LUA_DIR = Path(__file__).parent / "lua"
 
 def load_lua(name: str) -> str:
     return (LUA_DIR / f"{name}.lua").read_text(encoding="utf-8")
-
-
-def current_period(now: datetime | None = None) -> tuple[str, int]:
-    """Calendar-month period label and expiry timestamp (start of next month + 1 day grace)."""
-    now = now or datetime.now(UTC)
-    if now.month == 12:
-        next_month = datetime(now.year + 1, 1, 1, tzinfo=UTC)
-    else:
-        next_month = datetime(now.year, now.month + 1, 1, tzinfo=UTC)
-    return now.strftime("%Y-%m"), int(next_month.timestamp()) + 86400
-
-
-class QuotaExceeded(Exception):
-    def __init__(self, feature: str, used: int, limit: int):
-        super().__init__(f"quota exceeded for {feature}: {used}/{limit}")
-        self.feature = feature
-        self.used = used
-        self.limit = limit
 
 
 @dataclass
@@ -81,6 +65,11 @@ class QuotaStore:
             keys=[self.limit_key(org_id, feature, period), usage_key, reservation_key],
             args=[cost, fingerprint, expire_at, RESERVATION_TTL],
         )
+        if status == "exceeded":
+            raise QuotaExceeded(feature, int(used), int(limit))
+        if status != "ok":
+            raise BY_STATUS[status]()
+
         return Reservation(
             status=status,
             used=int(used),
