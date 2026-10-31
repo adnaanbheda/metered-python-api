@@ -66,6 +66,18 @@ async def test_reserve_raises_per_status(redis_client, monkeypatch, status, exc)
     assert type(info.value) is exc
 
 
+async def test_unknown_status_is_json_500(client, monkeypatch):
+    async def fake_reserve(**_):
+        return "bogus", 0, 0
+
+    monkeypatch.setattr(main.quota_store, "_reserve", fake_reserve)
+    resp = await call(client, request_id="r")
+
+    assert_rejected(resp, QuotaError, "r")
+    assert resp.status_code == 500
+    assert resp.json()["detail"] == "unexpected reserve status 'bogus'"
+
+
 def test_every_status_has_distinct_http_status_and_code():
     assert set(BY_STATUS) == {
         "reserved",
