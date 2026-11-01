@@ -1,0 +1,18 @@
+# Metered routes: path -> feature and cost. Read by the Python meter (src/middlewares/meter.py)
+# and the Rust gateway (gateway/src/config.rs). A path not listed here is unmetered.
+
+[routes."/container_tracking"]
+feature = "container-tracking"
+cost = 1
+
+[routes."/sailing_schedule"]
+feature = "sailing-schedule"
+cost = 1
+
+[routes."/shipment_data"]
+feature = "shipment-data"
+cost = 1
+
+# cost = one unit per operation, charged to the operations' feature
+[routes."/batch"]
+kind = "batch"

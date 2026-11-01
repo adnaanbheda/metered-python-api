@@ -21,7 +21,7 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       REDIS_MAX_CONNECTIONS: ${REDIS_MAX_CONNECTIONS:-512}
-      DISABLE_METER: ${DISABLE_METER:-0}
+      METER_MODE: ${METER_MODE:-python}  # python | gateway (deploy/gateway.yaml) | off
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-1}  # uvicorn workers per replica
     depends_on:
       redis:

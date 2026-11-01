@@ -12,3 +12,5 @@ wheels/
 assignment.pdf
 bench-results
 .coverage
+# Rust gateway build output
+gateway/target

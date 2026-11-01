@@ -11,6 +11,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY main.py ./
+COPY deploy/meter.toml ./deploy/
 COPY src ./src
 COPY scripts ./scripts
 COPY mocks ./mocks

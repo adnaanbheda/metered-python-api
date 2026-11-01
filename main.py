@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 
 from admin import router as admin_router
+from middlewares.gateway_guard import GatewayGuard
 from middlewares.identity import IdentityMiddleware
 from middlewares.meter import MeterMiddleware
 from operations import router as operations_router
@@ -47,8 +48,15 @@ app.include_router(usage_router)
 if os.environ.get("ENABLE_ADMIN") == "1":  # dev only: exposes raw Redis keys
     app.include_router(admin_router)
 
-if os.environ.get("DISABLE_METER") != "1":  # bench only: A/B the meter's overhead
+# python: MeterMiddleware meters here. gateway: the Rust gateway (gateway/) meters in front and
+# GatewayGuard refuses anything that skipped it. off: bench only, A/B the meter's overhead.
+METER_MODE = os.environ.get("METER_MODE", "python")
+if METER_MODE == "python":
     app.add_middleware(MeterMiddleware, quota_store=quota_store)
+elif METER_MODE == "gateway":
+    app.add_middleware(GatewayGuard)
+elif METER_MODE != "off":
+    raise ValueError(f"METER_MODE must be python, gateway or off, not {METER_MODE!r}")
 app.add_middleware(IdentityMiddleware, quota_store=quota_store)
 
 if __name__ == "__main__":

@@ -1,0 +1,33 @@
+# METER_MODE=gateway: the Rust gateway (gateway/) is the front door and does the metering; the
+# replicas serve unmetered behind GatewayGuard. nginx stays up but unpublished.
+#   docker compose -f compose.yaml -f deploy/gateway.yaml up -d --build --wait
+# Paths here resolve from the project directory (compose.yaml's), not deploy/.
+
+services:
+  api:
+    environment:
+      METER_MODE: gateway
+
+  nginx:
+    ports: !reset []
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      UPSTREAM: api:8000
+    ports:
+      - "${STAGE_PORT:-8080}:80"
+    # Open the front door only once limits exist, as nginx does.
+    depends_on:
+      api:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "gateway", "--health"]
+      interval: 2s
+      timeout: 2s
+      retries: 15

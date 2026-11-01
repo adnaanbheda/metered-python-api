@@ -1,7 +1,9 @@
 import asyncio
 import logging
+import tomllib
 import uuid
 from collections import Counter
+from pathlib import Path
 
 from pydantic import ValidationError
 from starlette.datastructures import Headers, MutableHeaders
@@ -18,19 +20,29 @@ from utils.responses import error_response
 log = logging.getLogger(__name__)
 
 
-# TODO: config file to define features without re-deployments
+# Route table shared with the Rust gateway (gateway/src/config.rs).
+METER_CONFIG = Path(__file__).resolve().parents[2] / "deploy" / "meter.toml"
+
+
 def fixed(feature: str, cost: int = 1):
     return lambda body: {feature: cost}
 
 
-FEATURE_COSTS = {
-    "/container_tracking": fixed("container-tracking"),
-    "/sailing_schedule": fixed("sailing-schedule"),
-    "/shipment_data": fixed("shipment-data"),
-    "/batch": lambda body: Counter(
+def batch_cost(body: bytes) -> Counter:
+    return Counter(
         op.feature for op in BatchRequest.model_validate_json(body).operations
-    ),
-}
+    )
+
+
+def load_costs(path: Path) -> dict:
+    routes = tomllib.loads(path.read_text(encoding="utf-8"))["routes"]
+    return {
+        p: batch_cost if r.get("kind") == "batch" else fixed(r["feature"], r["cost"])
+        for p, r in routes.items()
+    }
+
+
+FEATURE_COSTS = load_costs(METER_CONFIG)
 
 
 REQUEST_ID_HEADER = "X-Request-Id"

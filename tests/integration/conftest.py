@@ -21,6 +21,9 @@ STAGE_PORT = 8090
 REDIS_PORT = 6390
 SETTLE_TIMEOUT = 2.0  # seconds a response waits for its commit/refund to land
 COMPOSE = ["docker", "compose", "-p", "quota-it", "-f", str(ROOT / "compose.yaml")]
+# METER_MODE=gateway: the same tests against the Rust gateway as the front door.
+if os.environ.get("METER_MODE") == "gateway":
+    COMPOSE += ["-f", str(ROOT / "deploy" / "gateway.yaml")]
 COMPOSE_ENV = {
     **os.environ,
     "STAGE_PORT": str(STAGE_PORT),

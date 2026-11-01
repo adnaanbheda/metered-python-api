@@ -1,0 +1,179 @@
+{
+  "fingerprints": [
+    {
+      "method": "GET",
+      "path": "/container_tracking",
+      "query": "",
+      "body": "",
+      "fingerprint": "f758ee75f5ae68d8"
+    },
+    {
+      "method": "GET",
+      "path": "/container_tracking",
+      "query": "container_id=MSCU1719583",
+      "body": "",
+      "fingerprint": "5c4d47804fec9523"
+    },
+    {
+      "method": "GET",
+      "path": "/container_tracking",
+      "query": "b=2&a=1",
+      "body": "",
+      "fingerprint": "a7834500c619bc2c"
+    },
+    {
+      "method": "GET",
+      "path": "/container_tracking",
+      "query": "a=1&a=0",
+      "body": "",
+      "fingerprint": "7faef8e1ecb8d21a"
+    },
+    {
+      "method": "GET",
+      "path": "/container_tracking",
+      "query": "a=&b",
+      "body": "",
+      "fingerprint": "061e868fe4492b9d"
+    },
+    {
+      "method": "GET",
+      "path": "/container_tracking",
+      "query": "q=a+b",
+      "body": "",
+      "fingerprint": "483901baf33ca52c"
+    },
+    {
+      "method": "GET",
+      "path": "/container_tracking",
+      "query": "q=%41%7e%2A",
+      "body": "",
+      "fingerprint": "b2789653ebe83461"
+    },
+    {
+      "method": "GET",
+      "path": "/container_tracking",
+      "query": "q=*~",
+      "body": "",
+      "fingerprint": "980fd051246523c3"
+    },
+    {
+      "method": "GET",
+      "path": "/container_tracking",
+      "query": "q=%C3%A9",
+      "body": "",
+      "fingerprint": "f2c2bfcbd001532a"
+    },
+    {
+      "method": "GET",
+      "path": "/container_tracking",
+      "query": "q=%zz&r=%4",
+      "body": "",
+      "fingerprint": "ebfe87d42e623066"
+    },
+    {
+      "method": "GET",
+      "path": "/container_tracking",
+      "query": "&&a=1&",
+      "body": "",
+      "fingerprint": "34a52fb2484a76ec"
+    },
+    {
+      "method": "GET",
+      "path": "/container_tracking",
+      "query": "origin=CNSHA&destination=NLRTM",
+      "body": "",
+      "fingerprint": "8bb838d3e4c9ff81"
+    },
+    {
+      "method": "POST",
+      "path": "/batch",
+      "query": "",
+      "body": "",
+      "fingerprint": "ae48f4420380f4d5"
+    },
+    {
+      "method": "POST",
+      "path": "/batch",
+      "query": "",
+      "body": "{\"operations\":[{\"feature\":\"container-tracking\",\"container_id\":\"MSCU1719583\"}],\"mode\":\"all_or_nothing\"}",
+      "fingerprint": "6cf6e6ee2f435cab"
+    },
+    {
+      "method": "POST",
+      "path": "/batch",
+      "query": "",
+      "body": "{ \"mode\" : \"all_or_nothing\",\n  \"operations\": [ {\"container_id\": \"MSCU1719583\", \"feature\": \"container-tracking\"} ] }",
+      "fingerprint": "6cf6e6ee2f435cab"
+    },
+    {
+      "method": "POST",
+      "path": "/batch",
+      "query": "",
+      "body": "{\"z\": {\"b\": [1, 2, {\"d\": null, \"c\": true}], \"a\": false}}",
+      "fingerprint": "df7a24a18b2d76a5"
+    },
+    {
+      "method": "POST",
+      "path": "/batch",
+      "query": "",
+      "body": "{\"s\": \"caf\\u00e9 \u00e9 \ud83d\ude00\"}",
+      "fingerprint": "920a3195a4cdf0fa"
+    },
+    {
+      "method": "POST",
+      "path": "/batch",
+      "query": "",
+      "body": "{\"s\": \"tab\\t nl\\n quote\\\" back\\\\ ctl\\u0001 del\u007f\"}",
+      "fingerprint": "803ef435442dd1f5"
+    },
+    {
+      "method": "POST",
+      "path": "/batch",
+      "query": "",
+      "body": "{\"f\": [1.5, 1.0, 1e16, 1.5e16, 1e-7, 0.0001, -0.0, 123456789012345.6, 2.5e-300]}",
+      "fingerprint": "46d7b8ef0d855586"
+    },
+    {
+      "method": "POST",
+      "path": "/batch",
+      "query": "",
+      "body": "{\"i\": [0, -1, 9007199254740993, 12345678901234567890]}",
+      "fingerprint": "b0474f4ec76128bd"
+    },
+    {
+      "method": "POST",
+      "path": "/batch",
+      "query": "",
+      "body": "{\"dup\": 1, \"dup\": 2}",
+      "fingerprint": "213f4245c02071bb"
+    },
+    {
+      "method": "POST",
+      "path": "/batch",
+      "query": "",
+      "body": "[]",
+      "fingerprint": "966ab8a644cd3d75"
+    },
+    {
+      "method": "POST",
+      "path": "/batch",
+      "query": "",
+      "body": "\"just a string\"",
+      "fingerprint": "16e257e6f898c3a1"
+    },
+    {
+      "method": "POST",
+      "path": "/batch",
+      "query": "",
+      "body": "not json",
+      "fingerprint": "70bc61cb67ad8d4b"
+    },
+    {
+      "method": "POST",
+      "path": "/batch",
+      "query": "",
+      "body": "{broken",
+      "fingerprint": "c7710bad56718f2d"
+    }
+  ]
+}

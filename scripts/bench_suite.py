@@ -30,7 +30,8 @@ One custom run instead of the defaults:
     uv run scripts/bench_suite.py redis -n 20000 -c 64 --procs 4
     uv run scripts/bench_suite.py redis --op refund --rate 3000 -n 60000
     uv run scripts/bench_suite.py api --route unmetered -q 8000
-    uv run scripts/bench_suite.py api --no-meter -q 1000 -c 50   # vs the same without: meter overhead
+    uv run scripts/bench_suite.py api --meter off -q 1000 -c 50  # vs the same without: meter overhead
+    uv run scripts/bench_suite.py api --meter gateway -q 8000    # Rust gateway as the front door
     uv run scripts/bench_suite.py api -c 1024 -z 30s --servers granian   # no -q: unthrottled
 
 Meter overhead rate sweep (OH): the metered route with the meter off, then on, at each rate
@@ -38,6 +39,9 @@ Meter overhead rate sweep (OH): the metered route with the meter off, then on, a
 successful req/s falls behind the target is the max sustainable throughput, per meter setting:
     uv run scripts/bench_suite.py overhead --servers uvicorn
     uv run scripts/bench_suite.py overhead -q 3000 4000 5000
+    uv run scripts/bench_suite.py overhead --meters python gateway   # off vs Python vs Rust meter
+
+METER_MODE=gateway in the environment puts the Rust gateway in front for the default runs too.
 
 Both load generators run inside the compose network (store_bench.py in a one-off api container, oha as
 its own container), so Docker Desktop's port forwarding is never in the path. oha gets the last
@@ -130,6 +134,15 @@ services:
 """
 
 
+METER_MODES = ["python", "gateway", "off"]
+# METER_MODE=gateway: the Rust gateway is the front door (deploy/gateway.yaml), else nginx.
+GATEWAY_FILES = ["-f", "compose.yaml", "-f", "deploy/gateway.yaml"]
+
+
+def front() -> str:
+    return "gateway" if os.environ.get("METER_MODE") == "gateway" else "nginx"
+
+
 # set in main() and setup()
 RES = ROOT / "bench-results"
 NETWORK = ""
@@ -152,34 +165,47 @@ def log(msg: str) -> None:
     print(f"[{datetime.now():%H:%M:%S}] {msg}", flush=True)
 
 
-def published_port(service: str, port: str) -> str:
-    out = sh("docker", "compose", "port", service, port, capture=True)
-    return out.rsplit(":", 1)[1]
+def published_port(service: str, port: str) -> str | None:
+    """Host port the running stack published for service:port, or None."""
+    proc = subprocess.run(
+        ["docker", "compose", *GATEWAY_FILES, "port", service, port],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    out = proc.stdout.strip()
+    return out.rsplit(":", 1)[1] if proc.returncode == 0 and out else None
 
 
 def setup(server: str) -> None:
-    """(Re)start the api replicas on `server` and wait until the stack is healthy."""
+    """(Re)start the api replicas on `server` behind the METER_MODE front door and wait until
+    the stack is healthy."""
     global NETWORK
-    files = ["-f", "compose.yaml"]
+    gateway = front() == "gateway"
+    files = GATEWAY_FILES[:] if gateway else ["-f", "compose.yaml"]
     pin = RES / "cpuset.yaml"
-    services = "".join(
-        f"  {s}:\n    cpuset: {STACK_CPUS}\n" for s in ("api", "nginx", "redis")
-    )
+    pinned = ["api", "nginx", "redis", *(["gateway"] if gateway else [])]
+    services = "".join(f"  {s}:\n    cpuset: {STACK_CPUS}\n" for s in pinned)
     pin.write_text(f"services:\n{services}", encoding="utf-8")
     files += ["-f", str(pin)]
     if server == "granian":
         override = RES / "granian.yaml"
         override.write_text(GRANIAN_OVERRIDE, encoding="utf-8")
         files += ["-f", str(override)]
-    log(f"starting {os.environ.get('API_REPLICAS', '8')} x {server}")
+    mode = os.environ.get("METER_MODE", "python")
+    log(f"starting {os.environ.get('API_REPLICAS', '8')} x {server}, meter {mode}")
+    # --remove-orphans: leaving gateway mode drops the gateway, which holds STAGE_PORT
+    up = ["docker", "compose", *files, "up", "-d", "--wait", "--remove-orphans"]
     # captured: compose progress only shows (via sh's exit message) if a step fails
-    sh("docker", "compose", *files, "up", "-d", "--wait", capture=True)
-    # nginx resolves replica IPs once at startup; the second up waits for it to be healthy again
-    sh("docker", "compose", "restart", "nginx", capture=True)
-    sh("docker", "compose", *files, "up", "-d", "--wait", capture=True)
-    nginx = sh("docker", "compose", "ps", "-q", "nginx", capture=True)
+    sh(*up, capture=True)
+    if not gateway:
+        # nginx resolves replica IPs once at startup (the gateway re-resolves every 2s);
+        # the second up waits for it to be healthy again
+        sh("docker", "compose", "restart", "nginx", capture=True)
+        sh(*up, capture=True)
+    container = sh("docker", "compose", *files, "ps", "-q", front(), capture=True)
     fmt = "{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}"
-    NETWORK = sh("docker", "inspect", "-f", fmt, nginx, capture=True)
+    NETWORK = sh("docker", "inspect", "-f", fmt, container, capture=True)
 
 
 def flags(**kw: object) -> list[str]:
@@ -220,15 +246,15 @@ def run_redis_bench(label: str, **kw: object) -> None:
 def run_api_bench(
     label: str, server: str, route: str, pause: int = 0, org: str = ORG, **kw: object
 ) -> tuple[str, dict]:
-    """oha through nginx to the api replicas as `org`, then pause seconds. No q: unthrottled.
-    Returns the run name and oha's report."""
+    """oha through the front door (nginx or the gateway) to the api replicas as `org`, then
+    pause seconds. No q: unthrottled. Returns the run name and oha's report."""
     name = run_name(label, server, route, **kw)
     log(f"{name}: oha {' '.join(flags(**kw))} {ROUTES[route]}")
     oha = ["docker", "run", "--rm", "--name", OHA_NAME, "--network", NETWORK]
     oha += ["--cpuset-cpus", OHA_CPUSET, OHA_IMAGE]
     # fixed rate: time each request from when it was due, not when a stalled worker sent it
     correction = ["--latency-correction"] if kw.get("q") else []
-    url = f"http://nginx{ROUTES[route]}"
+    url = f"http://{front()}{ROUTES[route]}"
     out = sh(
         *oha,
         *flags(**kw),
@@ -393,11 +419,14 @@ def b8_api_race(g: Grid, server: str) -> None:
             "commits_per_replica": sorted(per_replica.values(), reverse=True),
             "seconds": round(report["summary"]["total"], 2),
         }
+        # Gateway mode: the one gateway issues every commit, so `instance` names it, not the
+        # replicas; the race is between its concurrent requests on the shared Redis.
+        many = len(per_replica) > 1 or front() == "gateway"
         check["pass"] = (
             ok == used == charged == limit
             and check["other"] == 0
             and states == {"committed": limit}
-            and len(per_replica) > 1
+            and many
             and None not in per_replica
         )
         log(f"{name}: {'PASS' if check['pass'] else 'FAIL'} {check}")
@@ -447,15 +476,24 @@ def parse_args() -> argparse.Namespace:
     ab.add_argument("-z", default="20s", help="duration")
     ab.add_argument("-c", type=int, default=512, help="connections")
     ab.add_argument(
-        "--no-meter",
-        action="store_true",
-        help="replicas run with DISABLE_METER=1: same route, no Redis, for the meter's overhead",
+        "--meter",
+        choices=METER_MODES,
+        default="python",
+        help="python: MeterMiddleware behind nginx; gateway: the Rust gateway as front "
+        "door; off: nginx, no meter (the meter's overhead)",
     )
     add_servers(ab)
     oh = commands.add_parser(
         "overhead", help="meter off vs on on the metered route, swept over rates"
     )
     oh.add_argument("-q", type=int, nargs="+", help="req/s to sweep; default: grid's")
+    oh.add_argument(
+        "--meters",
+        nargs="+",
+        choices=["python", "gateway"],
+        default=["python"],
+        help="meters to compare against off",
+    )
     add_servers(oh)
 
     args = p.parse_args()
@@ -489,32 +527,39 @@ def run_custom_redis(args: argparse.Namespace) -> None:
 
 
 def run_custom_api(args: argparse.Namespace) -> None:
-    label = "custom-nometer" if args.no_meter else "custom"
+    label = {"python": "custom", "gateway": "custom-gw", "off": "custom-nometer"}
     # compose.yaml passes it to the replicas; setup()'s `up` recreates them when it changes
-    os.environ["DISABLE_METER"] = "1" if args.no_meter else "0"
+    os.environ["METER_MODE"] = args.meter
 
     def custom(server: str) -> None:
-        run_api_bench(label, server, args.route, z=args.z, c=args.c, q=args.q)
+        run_api_bench(
+            label[args.meter], server, args.route, z=args.z, c=args.c, q=args.q
+        )
 
     on_each_server(args.servers, custom)
 
 
+# overhead run labels: OH-on stays the Python meter, so older results still pair up
+OH_LABELS = {"off": "OH-off", "python": "OH-on", "gateway": "OH-gw"}
+
+
 def run_overhead(args: argparse.Namespace) -> None:
-    """The metered route with the meter off (DISABLE_METER=1), then on, at each rate. Same route
-    and flags both ways, so the delta is the meter alone. One restart per toggle."""
+    """The metered route with the meter off, then with each of --meters, at each rate. Same route
+    and flags every way, so the delta is the meter alone. One restart per toggle."""
     g = args.grid
     loads = [dict(z=g.api_duration, c=512, q=q) for q in args.q or g.overhead_rates]
-    # Off first, so the stack is left metered. on_each_server's setup() starts it unmetered.
-    os.environ["DISABLE_METER"] = "1"
+    modes = ["off", *args.meters]
+    # on_each_server's setup() starts the stack in the first mode.
+    os.environ["METER_MODE"] = modes[0]
 
     def overhead(server: str) -> None:
-        for meter in ("off", "on"):
-            if meter == "on":
-                os.environ["DISABLE_METER"] = "0"
+        for i, mode in enumerate(modes):
+            if i:
+                os.environ["METER_MODE"] = mode
                 setup(server)
             for kw in loads:
-                run_api_bench(f"OH-{meter}", server, "metered", g.pause, **kw)
-        os.environ["DISABLE_METER"] = "1"  # the next server starts unmetered again
+                run_api_bench(OH_LABELS[mode], server, "metered", g.pause, **kw)
+        os.environ["METER_MODE"] = modes[0]  # the next server starts unmetered again
 
     on_each_server(args.servers, overhead)
 
@@ -535,18 +580,20 @@ def main() -> None:
     STACK_CPUS = f"0-{ncpu - OHA_CPUS - 1}"
     OHA_CPUSET = f"{ncpu - OHA_CPUS}-{ncpu - 1}"
 
-    if not sh("docker", "compose", "ps", "-q", "nginx", capture=True):
+    # setup() re-runs `compose up`, which recreates the front door/redis on the compose default
+    # ports unless these match what the running stack published.
+    stage = published_port("gateway", "80") or published_port("nginx", "80")
+    redis = published_port("redis", "6379")
+    if not (stage and redis):
         sys.exit("stack not running: docker compose up -d --wait")
-    # setup() re-runs `compose up`, which recreates nginx/redis on the compose default ports
-    # unless these match what the running stack published.
-    os.environ.setdefault("STAGE_PORT", published_port("nginx", "80"))
-    os.environ.setdefault("REDIS_PORT", published_port("redis", "6379"))
+    os.environ.setdefault("STAGE_PORT", stage)
+    os.environ.setdefault("REDIS_PORT", redis)
 
-    # The api image bakes in src/: rebuild so the one-off store_bench.py container and the replicas
-    # (recreated by setup()) run the current code.
-    log("building api image")
-    # captured: a failing step (ruff/pytest in the check stage) still prints its log on exit
-    sh("docker", "compose", "build", "api", capture=True)
+    # The api image bakes in src/ (the gateway image its binary): rebuild so the one-off
+    # store_bench.py container and the containers recreated by setup() run the current code.
+    log("building api and gateway images")
+    # captured: a failing step (ruff/pytest, cargo test) still prints its log on exit
+    sh("docker", "compose", *GATEWAY_FILES, "build", "api", "gateway", capture=True)
 
     RES = RES / f"{datetime.now():%Y%m%d-%H%M%S}"
     RES.mkdir(parents=True)

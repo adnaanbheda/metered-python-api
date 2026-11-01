@@ -61,17 +61,25 @@ def api_summary(res: Path) -> str:
 
 
 def overhead_summary(res: Path) -> str:
-    """OH: each OH-on-<run> next to its OH-off-<run>; the delta is the meter's cost."""
+    """OH: each metered run (OH-on-<run>: Python meter, OH-gw-<run>: Rust gateway) next to its
+    OH-off-<run>; the delta is that meter's cost."""
     runs = dict(results(res, "api"))
-    header = ["Run", "successful req/s, meter off", "successful req/s, meter on"]
+    header = [
+        "Run",
+        "Meter",
+        "successful req/s, meter off",
+        "successful req/s, meter on",
+    ]
     for p in ("p50", "p95", "p99"):
         header += [f"{p} off", f"{p} on", f"{p} +ms"]
     rows = []
     for name, on in runs.items():
-        run = name.removeprefix("OH-on-")
-        if run == name or (off := runs.get(f"OH-off-{run}")) is None:
+        bench, _, rest = name.partition("-")
+        label, _, run = rest.partition("-")
+        meter = {"on": "python", "gw": "gateway"}.get(label)
+        if bench != "OH" or meter is None or (off := runs.get(f"OH-off-{run}")) is None:
             continue
-        row = [run]
+        row = [run, meter]
         row += [f"{ok_per_s(r):,.0f}" for r in (off, on)]
         for p in ("p50", "p95", "p99"):
             a, b = off["latencyPercentiles"][p], on["latencyPercentiles"][p]

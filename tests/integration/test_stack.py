@@ -1,4 +1,5 @@
 import asyncio
+import os
 from collections import Counter
 
 import pytest
@@ -7,6 +8,7 @@ from store import USAGE_STREAM, QuotaStore, current_period
 from test_scenarios import test_scenario  # noqa: F401  re-run every scenario over HTTP
 
 pytestmark = pytest.mark.integration
+GATEWAY = os.environ.get("METER_MODE") == "gateway"
 
 
 async def test_burst_across_replicas_charges_exactly_the_limit(client, redis_client):
@@ -33,8 +35,10 @@ async def test_burst_across_replicas_charges_exactly_the_limit(client, redis_cli
         int(await redis_client.get(QuotaStore.usage_key(org, feature, period))) == limit
     )
     assert await redis_client.xlen(USAGE_STREAM) == limit
-    # otherwise this only proved one process is atomic with itself
-    assert len({r.headers["X-Upstream"] for r in responses}) > 1
+    # otherwise this only proved one process is atomic with itself. Gateway mode: one gateway
+    # meters for every replica and answers 429s itself, so there is no replica spread to show.
+    if not GATEWAY:
+        assert len({r.headers["X-Upstream"] for r in responses}) > 1
 
 
 async def test_retry_on_another_replica_is_deduped(client, redis_client):
@@ -49,8 +53,10 @@ async def test_retry_on_another_replica_is_deduped(client, redis_client):
 
     assert first.status_code == 200
     assert {r.status_code for r in retries} == {409}
-    # round-robin puts at least one retry on a different replica than the first call
-    assert {r.headers["X-Upstream"] for r in retries} - {first.headers["X-Upstream"]}
+    # round-robin puts at least one retry on a different replica than the first call.
+    # Gateway mode: the gateway dedupes the retries before any replica sees them.
+    if not GATEWAY:
+        assert {r.headers["X-Upstream"] for r in retries} - {first.headers["X-Upstream"]}
     period, _ = current_period()
     assert (
         int(
