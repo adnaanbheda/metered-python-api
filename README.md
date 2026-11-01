@@ -1,4 +1,4 @@
-# api-metred-quota
+# api-metered-quota
 
 [DESIGN.md](DESIGN.md)
 
