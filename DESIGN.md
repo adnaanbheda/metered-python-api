@@ -170,6 +170,21 @@ Only `reserve` is on the request path; `commit`/`refund` run after the response 
 
 10k req/s with the meter on isn't reachable on this box: it needs ~10 replica cores plus nginx and Redis on their own. Redis alone does 10–12k reserve+commit/s (store bench) and the API tier is stateless (all state in Redis), so it scales out with cores.
 
+## Bonus work
+
+Hybrid implementation that can run the middleware work without moving away from a Python based API, the business logic should remain in Python but the quota logic can be ported.
+
+1. Given this, we can make the already negligible overhead reduce even more and increase throughput. 
+2. Rust based gateway that calls the reserve/commit/refund and identity work and then processes the request.
+
+## Profiling
+
+- Meter on: 1,108µs CPU/req (~92% of a core); off: 459µs (~38%). Meter adds ~650µs/req.
+- Split: redis-py client ~200µs, socket writes ~140µs (2 sends × ~50µs over Docker VM networking), asyncio timeouts/locks ~75µs, our code ~80µs, uvicorn/FastAPI slowdown on a saturated core ~150µs. (Reason why Rust gateway has 2x throughput, the async python redis client the limiting factor).
+- Redis isn't the cost: ~32µs per `evalsha` server side. The Python client is.
+- 1 core / 1.1ms ≈ 900 req/s per replica; × 6 cores ≈ 5.4k, matching the ~5.1–6k metered cap.
+- Remaining levers: fewer Redis sends per request (commit batching), or the meter out of Python (Rust gateway).
+
 
 
 ## Appendix
