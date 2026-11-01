@@ -64,13 +64,17 @@ Needs the stack up (`docker compose up -d --wait`). Load runs from inside the co
 | B4 | HTTP max load, unmetered route |
 | B5 | HTTP max load, metered route |
 | B6 | sustained 2k req/s metered, 60 s |
+| B7 | quota under the replica race, one limit |
+| **B8** | **concurrency under load: quota never over-served, 512 connections across all replicas, limits 1k/5k/10k** |
+
+B8 is the concurrency proof. It passes only if exactly `limit` requests got `200`, the Redis counter and usage stream agree, and more than one replica committed. See [DESIGN.md](DESIGN.md), Testing & validation, item 8.
 
 ```sh
-uv run scripts/bench_suite.py                                 # defaults B1-B6, uvicorn + granian (~15 min)
+uv run scripts/bench_suite.py                                 # defaults B1-B8, uvicorn + granian (~15 min)
 uv run scripts/bench_suite.py --grid quick                    # smaller grid: fewer rates/procs, 5 s runs (~5 min)
 uv run scripts/bench_suite.py --only redis                    # B1-B3, redis bench
-uv run scripts/bench_suite.py --only api                      # B4-B6, api bench
-uv run scripts/bench_suite.py --servers granian               # B1-B6, api bench on one server
+uv run scripts/bench_suite.py --only api                      # B4-B8, api bench
+uv run scripts/bench_suite.py --servers granian               # B1-B8, api bench on one server
 uv run scripts/bench_suite.py --rates 2000 4000 6000          # custom B3-B5 sweep
 uv run scripts/bench_suite.py --no-rates                      # B4-B5 unthrottled, B3 skipped
 ```
