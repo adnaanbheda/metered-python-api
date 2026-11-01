@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import logging
 import os
 import socket
@@ -7,6 +9,7 @@ from typing import Any
 
 import redis
 from redis.asyncio import Redis
+from redis.exceptions import NoScriptError
 
 from exceptions import BY_STATUS, QuotaError, QuotaExceeded
 from utils.periods import current_period
@@ -17,6 +20,12 @@ log = logging.getLogger(__name__)
 RESERVATION_TTL = 300
 USAGE_STREAM = "usage_events"
 USAGE_STREAM_MAXLEN = 1_000_000
+# Commit loop: commits queued meanwhile go out in one pipeline, at most this many per send.
+COMMIT_BATCH = 100
+# Bound on queued commits; when full, commit_later commits inline instead of growing memory.
+COMMIT_QUEUE = 1000
+# Seconds stop() waits for queued commits to flush on shutdown.
+COMMIT_DRAIN_TIMEOUT = 5
 # Tags each usage event with the instance that committed it; in compose, the replica's container id.
 INSTANCE = socket.gethostname()
 
@@ -73,6 +82,8 @@ class QuotaStore:
         self._reserve = redis.register_script(load_lua("reserve"))
         self._commit = redis.register_script(load_lua("commit"))
         self._refund = redis.register_script(load_lua("refund"))
+        self._commits: asyncio.Queue[Reservation] = asyncio.Queue(COMMIT_QUEUE)
+        self._committer: asyncio.Task | None = None
 
     # {org_id} hash tag: all of an org's keys land in one Cluster slot
     @staticmethod
@@ -123,21 +134,89 @@ class QuotaStore:
     # Both return False when the reservation is no longer 'reserved': in the
     # middleware that means it expired mid-request (RESERVATION_TTL), so the
     # charge stays on the counter with no usage event / no refund.
+    @staticmethod
+    def _commit_argv(r: Reservation) -> list:
+        """commit.lua KEYS then ARGV."""
+        return [
+            r.reservation_key,
+            USAGE_STREAM,
+            r.org_id,
+            r.feature,
+            r.request_id,
+            r.period,
+            USAGE_STREAM_MAXLEN,
+            INSTANCE,
+        ]
+
     async def commit(self, r: Reservation) -> bool:
-        ok = await self._commit(
-            keys=[r.reservation_key, USAGE_STREAM],
-            args=[
-                r.org_id,
-                r.feature,
-                r.request_id,
-                r.period,
-                USAGE_STREAM_MAXLEN,
-                INSTANCE,
-            ],
-        )
+        argv = self._commit_argv(r)
+        ok = await self._commit(keys=argv[:2], args=argv[2:])
         if not ok:
             log.warning("commit skipped, reservation not live: %s", r.reservation_key)
         return bool(ok)
+
+    async def commit_later(self, r: Reservation) -> None:
+        """Queue a commit for the commit loop; commits inline if it isn't running or is full."""
+        if self._committer is None:
+            await self.commit(r)
+            return
+        try:
+            self._commits.put_nowait(r)
+        except asyncio.QueueFull:
+            await self.commit(r)
+
+    def start(self) -> None:
+        self._committer = asyncio.create_task(self._commit_loop())
+
+    async def stop(self) -> None:
+        """Flush queued commits, then stop the loop. Whatever's left after the timeout is lost
+        (those reservations expire with the charge kept, like any failed commit)."""
+        if self._committer is None:
+            return
+        try:
+            async with asyncio.timeout(COMMIT_DRAIN_TIMEOUT):
+                await self._commits.join()
+        except TimeoutError:
+            log.error("commit loop stopped with %d unflushed", self._commits.qsize())
+        self._committer.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await self._committer
+        self._committer = None
+
+    async def _commit_loop(self) -> None:
+        # No timer: wait for one commit, take whatever queued up meanwhile. Idle, a batch is
+        # one commit sent at once; under load, batches grow while the previous send is out.
+        while True:
+            batch = [await self._commits.get()]
+            while len(batch) < COMMIT_BATCH and not self._commits.empty():
+                batch.append(self._commits.get_nowait())
+            try:
+                await self._flush(batch)
+            except Exception:
+                log.exception("commit batch of %d failed", len(batch))
+            finally:
+                for _ in batch:
+                    self._commits.task_done()
+
+    async def _flush(self, batch: list[Reservation]) -> None:
+        # One send for the batch; Redis still runs each commit.lua atomically on its own.
+        # Raw EVALSHA, not the Script: a Script in a pipeline adds a SCRIPT EXISTS round trip
+        # per execute, which costs as much as it saves when batches are small.
+        async with self.redis.pipeline(transaction=False) as pipe:
+            for r in batch:
+                pipe.evalsha(self._commit.sha, 2, *self._commit_argv(r))
+            results = await pipe.execute(raise_on_error=False)
+        for r, ok in zip(batch, results, strict=True):
+            if isinstance(
+                ok, NoScriptError
+            ):  # script cache gone (Redis restart): load it
+                await self.commit(r)
+            elif isinstance(ok, Exception):
+                log.error("commit failed: %s: %s", r.reservation_key, ok)
+            elif not ok:
+                log.warning(
+                    "commit skipped, reservation not live: %s", r.reservation_key
+                )
 
     async def refund(self, r: Reservation) -> bool:
         ok = await self._refund(keys=[r.reservation_key, r.usage_key])

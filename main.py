@@ -21,7 +21,9 @@ quota_store = QuotaStore(redis_client)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    quota_store.start()
     yield
+    await quota_store.stop()
     await redis_client.aclose()
 
 

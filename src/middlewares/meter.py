@@ -127,8 +127,8 @@ class MeterMiddleware:
         # failure here can't change it: log with the key instead of re-raising.
         try:
             if 200 <= response_status < 300:
-                await self.store.commit(reservation)
-                log.debug("committed %s status=%d", request_id, response_status)
+                await self.store.commit_later(reservation)
+                log.debug("committing %s status=%d", request_id, response_status)
             else:
                 await self.store.refund(reservation)
                 log.debug("refunded %s status=%d", request_id, response_status)
