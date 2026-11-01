@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from mock_data import CONTAINERS, SAILINGS, SHIPMENTS
 from schemas import (
@@ -10,7 +10,7 @@ from schemas import (
     SailingScheduleOp,
     ShipmentDataOp,
 )
-from swagger import examples, org_id_header, request_id_header
+from swagger import OPERATION_HEADERS, examples
 
 LANES = list(dict.fromkeys((s["origin"], s["destination"]) for s in SAILINGS))[:5]
 
@@ -54,20 +54,17 @@ def find_shipment(shipment_id: str) -> dict:
     return SHIPMENTS[shipment_id]
 
 
-router = APIRouter(
-    tags=["operations"],
-    dependencies=[Depends(org_id_header), Depends(request_id_header)],
-)
+router = APIRouter(tags=["operations"])
 
 
-@router.get("/container_tracking")
+@router.get("/container_tracking", openapi_extra=OPERATION_HEADERS)
 async def container_tracking(
     container_id: Annotated[str, Query(openapi_examples=CONTAINER_EXAMPLES)],
 ):
     return find_container(container_id=container_id)
 
 
-@router.get("/sailing_schedule")
+@router.get("/sailing_schedule", openapi_extra=OPERATION_HEADERS)
 async def sailing_schedule(
     origin: Annotated[str, Query(openapi_examples=ORIGIN_EXAMPLES)],
     destination: Annotated[str, Query(openapi_examples=DESTINATION_EXAMPLES)],
@@ -77,7 +74,7 @@ async def sailing_schedule(
     return find_sailings(origin, destination)
 
 
-@router.get("/shipment_data")
+@router.get("/shipment_data", openapi_extra=OPERATION_HEADERS)
 async def shipment_data(
     shipment_id: Annotated[str, Query(openapi_examples=SHIPMENT_EXAMPLES)],
 ):
@@ -94,7 +91,7 @@ def run_operation(op: Operation) -> dict:
             return find_shipment(op.shipment_id)
 
 
-@router.post("/batch")
+@router.post("/batch", openapi_extra=OPERATION_HEADERS)
 async def batch(req: BatchRequest):
     # all_or_nothing: one failed op fails the batch, so the meter refunds the whole cost
     results = []

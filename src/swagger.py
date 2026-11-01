@@ -28,7 +28,21 @@ async def org_id_header(
     return request.state.org_id
 
 
-async def request_id_header(
-    x_request_id: Annotated[str | None, Header()] = None,
-) -> None:
-    """Expose optional X-Request-Id as a per-request field in Swagger."""
+def optional_header(name: str, title: str, **extra) -> dict:
+    return {
+        "name": name,
+        "in": "header",
+        "required": False,
+        "schema": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": title},
+        **extra,
+    }
+
+
+# X-Org-Id and optional X-Request-Id in Swagger for metered routes, as OpenAPI only:
+# a Depends would run on every request, and the middlewares already read both headers.
+OPERATION_HEADERS = {
+    "parameters": [
+        optional_header("x-org-id", "X-Org-Id", examples=ORG_EXAMPLES),
+        optional_header("x-request-id", "X-Request-Id"),
+    ]
+}

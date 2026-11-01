@@ -1,11 +1,13 @@
 import time
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 
 import main
 import store
 from store import QuotaStore
+from utils import periods
 
 ORG, FEATURE = "acme", "container-tracking"
 PATH = "/container_tracking"
@@ -110,3 +112,59 @@ async def test_refund_after_rollover_returns_units_to_original_period(
 
     assert await used(redis_client, JAN) == 0
     assert await used(redis_client, FEB) is None  # refund didn't touch the new period
+
+
+@pytest.fixture
+def fake_time(monkeypatch):
+    """Drive current_period()'s cached clock path; move it with fake_time.now = ..."""
+    c = Clock(JAN)
+    monkeypatch.setattr(
+        periods, "time", SimpleNamespace(time=lambda: c.now.timestamp())
+    )
+    monkeypatch.setattr(periods, "_cache", (0.0, 0.0, ("", 0)))
+    return c
+
+
+@pytest.mark.parametrize(
+    "before, after",
+    [
+        (
+            datetime(2099, 1, 31, 23, 59, 59, tzinfo=UTC),
+            datetime(2099, 2, 1, tzinfo=UTC),
+        ),
+        (
+            datetime(2099, 12, 31, 23, 59, 59, tzinfo=UTC),
+            datetime(2100, 1, 1, tzinfo=UTC),
+        ),
+    ],
+)
+def test_cached_period_rolls_over_at_month_boundary(fake_time, before, after):
+    fake_time.now = before
+    assert periods.current_period() == periods.current_period(before)
+
+    fake_time.now = after  # first call past the boundary, no invalidation step
+    assert periods.current_period() == periods.current_period(after)
+    assert periods.current_period()[0] == after.strftime("%Y-%m")
+
+
+def test_cached_period_recomputes_once_per_month(fake_time, monkeypatch):
+    calls = []
+    real = periods._period
+    monkeypatch.setattr(periods, "_period", lambda now: calls.append(now) or real(now))
+
+    for day in (1, 15, 31):
+        fake_time.now = datetime(2099, 1, day, tzinfo=UTC)
+        assert periods.current_period()[0] == "2099-01"
+    assert len(calls) == 1
+
+    fake_time.now = FEB
+    assert periods.current_period()[0] == "2099-02"
+    assert len(calls) == 2
+
+
+def test_cached_period_follows_clock_going_backwards(fake_time):
+    fake_time.now = FEB
+    assert periods.current_period()[0] == "2099-02"
+
+    fake_time.now = JAN  # e.g. an NTP correction across midnight
+    assert periods.current_period()[0] == "2099-01"
