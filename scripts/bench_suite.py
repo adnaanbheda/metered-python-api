@@ -43,6 +43,11 @@ Both load generators run inside the compose network (store_bench.py in a one-off
 its own container), so Docker Desktop's port forwarding is never in the path. oha gets the last
 OHA_CPUS of Docker's CPUs and the stack the rest, so the load generator never takes CPU from what it
 measures; fixed-rate runs (-q) use --latency-correction, so a stall can't hide by delaying sends.
+
+Two machines (isolated numbers, scripts/bench_remote.sh sets this up): with OHA_HOST set to a Docker
+host for oha (ssh://user@loadgen), oha runs there against http://STAGE_ADDR:STAGE_PORT, and the
+stack gets all of this machine's CPUs.
+
 Output goes to
 bench-results/<timestamp>/: redis/, api/, quota/ and race/ with one JSON per run, named after its flags
 (B2-n5000-c16-procs4, custom-granian-metered-20s-c512-q8000), plus env.txt and summary.md.
@@ -115,6 +120,10 @@ OHA_IMAGE = "ghcr.io/hatoo/oha:latest"
 OHA_NAME = f"bench-oha-{os.getpid()}"  # so Ctrl+C can stop the running oha
 OHA_FLAGS = ["--ipv4", "--no-tui", "--output-format", "json"]
 OHA_CPUS = 2  # pinned to the last 2 of Docker's CPUs; the stack gets the rest
+# Remote oha: Docker host it runs on, and this machine's address as that host reaches it.
+OHA_HOST = os.environ.get("OHA_HOST")
+STAGE_ADDR = os.environ.get("STAGE_ADDR")
+OHA_DOCKER = ["docker", "-H", OHA_HOST] if OHA_HOST else ["docker"]
 # One-off api container on the compose network, with the current scripts/ mounted.
 IN_API = [
     *"docker compose run --rm --no-deps -T".split(),
@@ -224,11 +233,15 @@ def run_api_bench(
     Returns the run name and oha's report."""
     name = run_name(label, server, route, **kw)
     log(f"{name}: oha {' '.join(flags(**kw))} {ROUTES[route]}")
-    oha = ["docker", "run", "--rm", "--name", OHA_NAME, "--network", NETWORK]
-    oha += ["--cpuset-cpus", OHA_CPUSET, OHA_IMAGE]
+    oha = [*OHA_DOCKER, "run", "--rm", "--name", OHA_NAME]
+    if OHA_HOST:
+        url = f"http://{STAGE_ADDR}:{os.environ['STAGE_PORT']}{ROUTES[route]}"
+    else:
+        oha += ["--network", NETWORK, "--cpuset-cpus", OHA_CPUSET]
+        url = f"http://nginx{ROUTES[route]}"
+    oha.append(OHA_IMAGE)
     # fixed rate: time each request from when it was due, not when a stalled worker sent it
     correction = ["--latency-correction"] if kw.get("q") else []
-    url = f"http://nginx{ROUTES[route]}"
     out = sh(
         *oha,
         *flags(**kw),
@@ -256,7 +269,7 @@ def on_each_server(servers: list[str], bench: Callable[[str], None]) -> None:
             setup(server)
             bench(server)
     finally:
-        subprocess.run(["docker", "rm", "-f", OHA_NAME], capture_output=True)
+        subprocess.run([*OHA_DOCKER, "rm", "-f", OHA_NAME], capture_output=True)
         log("deleting bench keys")
         # new connection: setup() may have recreated redis (AOF keeps the keys, not the socket)
         cleanup(host_redis(), ORG)
@@ -411,7 +424,10 @@ def record_env() -> None:
     )
     docker = sh("docker", "info", "-f", fmt, capture=True)
     env = f"host: {platform.platform()}, {os.cpu_count()} CPUs\ndocker: {docker}\n"
-    env += f"cpuset: stack {STACK_CPUS}, oha {OHA_CPUSET}\n"
+    if OHA_HOST:
+        oha = sh(*OHA_DOCKER, "info", "-f", fmt, capture=True)
+        env += f"oha: {OHA_HOST} -> {STAGE_ADDR}, docker: {oha}\n"
+    env += f"cpuset: stack {STACK_CPUS}, oha {OHA_CPUSET or OHA_HOST}\n"
     (RES / "env.txt").write_text(env, encoding="utf-8")
     log(env.replace("\n", "; "))
 
@@ -532,8 +548,15 @@ def main() -> None:
     args = parse_args()
 
     ncpu = int(sh("docker", "info", "-f", "{{.NCPU}}", capture=True))
-    STACK_CPUS = f"0-{ncpu - OHA_CPUS - 1}"
-    OHA_CPUSET = f"{ncpu - OHA_CPUS}-{ncpu - 1}"
+    if OHA_HOST:
+        if not STAGE_ADDR:
+            sys.exit(
+                "OHA_HOST needs STAGE_ADDR: this machine's address as the oha host sees it"
+            )
+        STACK_CPUS = f"0-{ncpu - 1}"
+    else:
+        STACK_CPUS = f"0-{ncpu - OHA_CPUS - 1}"
+        OHA_CPUSET = f"{ncpu - OHA_CPUS}-{ncpu - 1}"
 
     if not sh("docker", "compose", "ps", "-q", "nginx", capture=True):
         sys.exit("stack not running: docker compose up -d --wait")
