@@ -47,7 +47,8 @@ app.include_router(usage_router)
 if os.environ.get("ENABLE_ADMIN") == "1":  # dev only: exposes raw Redis keys
     app.include_router(admin_router)
 
-app.add_middleware(MeterMiddleware, quota_store=quota_store)
+if os.environ.get("DISABLE_METER") != "1":  # bench only: A/B the meter's overhead
+    app.add_middleware(MeterMiddleware, quota_store=quota_store)
 app.add_middleware(IdentityMiddleware, quota_store=quota_store)
 
 if __name__ == "__main__":
