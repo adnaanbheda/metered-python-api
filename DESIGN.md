@@ -70,7 +70,7 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 2. Quota exhaustion validation, negative quota should be absolutely prohibited.
 3. Reset updates the quotas
 4. ab to stress load the system, checking if there's a more apt tool for python development.
-5. oha seems to be a good alternative.
+5. oha seems to be a good alternative. (CHOSEN)
 6. Benchmark results cap at 4.5Kops/s for unmetered routes as of now, but benchmarks can be limited in queuing requests, adding multi process benchmarking as well as trying granian to reach peak 10K ops/s
 7. httpx bottleneck @ 200ops/s, oha gives real benchmark results
 8. Concurrency proof under load: B8 in `scripts/bench_suite.py` (CHOSEN). The assignment asks for "a concurrency test that proves quota is never over-served, not just one that passes with no contention", and for concurrent correctness to be demonstrated under load. In-process tests can't race (Limitations 9a), so this runs against the real stack.
@@ -125,15 +125,56 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 2. Scenarios for important components: idempotency, batch
 3. Manual checklist (basic metering, concurrency, idempotency, batch): [docs/manual-scenarios.md](docs/manual-scenarios.md)
 4. One shot docker compose up: API, Redis, health checks, seed data
+5. Separate assignment of cpu cores to oha, to make sure the other services aren't bottlenecked by it
 
 ## Technical details
 1. uv/ruff tooling with venv
 2. FastAPI with uvicorn/granian (benchmarking to pick one)
 3. docker compose to horizontally scale
 
+## Benchmarking
+
+Results here are on AMD 5600X (6 cores, 12 threads), 32gigs memory. Everything runs in Docker Desktop's VM, so 8 uvicorn replicas, nginx, Redis and the load generator (oha) share the same 12 threads.
+
+1. Middleware overhead
+
+A/B testing with the `DISABLE_METER` flag: `DISABLE_METER=1` removes `MeterMiddleware`, everything else stays identical. Both runs on `/container_tracking` at 1000 req/s, 50 connections, 20s:
+
+| | meter off | meter on | overhead |
+| --- | --- | --- | --- |
+| avg | 1.21ms | 1.84ms | 0.62ms |
+| p50 | 1.15ms | 1.66ms | 0.51ms |
+| p95 | 1.68ms | 2.63ms | 0.95ms |
+| p99 | 2.46ms | 5.01ms | 2.55ms |
+
+Only `reserve` is on the request path; `commit`/`refund` run after the response is sent, so the overhead is about one Redis round trip (~0.6ms).
+
+2. API benchmarking (rate sweep)
+
+`API_REPLICAS=6 uv run scripts/bench_suite.py overhead -q 2000 5000 8000 10000 15000`: meter off vs on, open loop (`oha -q`, `--latency-correction`), 20s per rate, 512 connections, oha pinned to its own 2 CPUs. Successful req/s (p99, end to end; left out past the knee):
+
+| Rate | uvicorn off | uvicorn on | granian off | granian on |
+| --- | --- | --- | --- | --- |
+| 2k | 1,998 (1.6ms) | 1,997 (7.1ms) | 1,999 (1.9ms) | 1,999 (6.3ms) |
+| 5k | 4,996 (3.3ms) | 4,992 (453ms) | 4,996 (26.9ms) | 4,973 (832ms) |
+| 8k | 7,995 (26.1ms) | 5,057 | 7,988 (33.0ms) | 5,125 |
+| 10k | 9,815 (370ms) | 5,077 | 9,985 (55.9ms) | 5,125 |
+| 15k | 9,925 | 5,111 | 11,935 | 5,127 |
+
+- Overhead meets <10ms below the knee: +0.5ms p50, +5.5ms p99 at 2k/s (granian +4.3ms). Knee with the meter on is 3–4k.
+- Meter on caps at ~5.1k on both servers; meter off reaches ~10k (uvicorn) and ~12k (granian).
+- The cap is replica CPU: ~1.2ms per request with the meter vs ≤0.75ms without. The meter is ~25% of py-spy samples, half of it redis-py; Redis itself spends 31.6µs per `evalsha`.
+- Access logs are off in uvicorn (~12% of replica CPU) and nginx. The metered cap didn't move, so nginx isn't the bottleneck.
+- 6 replicas beat 8 (6 physical cores). Scaling, meter on, unthrottled: 1 → 1,078, 2 → 2,023, 4 → 3,355, 6 → 4,766, 8 → 4,861 req/s; linear to 2, then CPU contention, no errors at any count.
+- uvicorn workers per replica (`WEB_CONCURRENCY`) lose to replicas by 8–14% at equal process count; kept at 1.
+
+10k req/s with the meter on isn't reachable on this box: it needs ~10 replica cores plus nginx and Redis on their own. Redis alone does 10–12k reserve+commit/s (store bench) and the API tier is stateless (all state in Redis), so it scales out with cores.
+
+
+
 ## Appendix
 
-Benchmark results and methodology: [docs/benchmarks.md](docs/benchmarks.md).
+Complete Benchmark results and methodology: [docs/benchmarks.md](docs/benchmarks.md).
 
 Design and key decisions are mine, the following implementations were assisted by AI.
 
