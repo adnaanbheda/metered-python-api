@@ -47,14 +47,37 @@ def api_row(name: str, r: dict) -> list[object]:
         k: v for k, v in r.get("errorDistribution", {}).items() if "deadline" not in k
     }
     p = r.get("latencyPercentiles") or {}
-    ok_per_s = f"{codes.get('200', 0) / r['summary']['total']:,.0f}"
     p50, p99 = ms(p.get("p50")), ms(p.get("p99"))
-    return [name, ok_per_s, non200 or "-", errors or "-", p50, p99]
+    return [name, f"{ok_per_s(r):,.0f}", non200 or "-", errors or "-", p50, p99]
+
+
+def ok_per_s(r: dict) -> float:
+    return r.get("statusCodeDistribution", {}).get("200", 0) / r["summary"]["total"]
 
 
 def api_summary(res: Path) -> str:
     header = ["Run", "200s/s", "Non-200", "Errors (excl. deadline)", "p50 ms", "p99 ms"]
     return md_table(header, [api_row(name, r) for name, r in results(res, "api")])
+
+
+def overhead_summary(res: Path) -> str:
+    """OH: each OH-on-<run> next to its OH-off-<run>; the delta is the meter's cost."""
+    runs = dict(results(res, "api"))
+    header = ["Run", "successful req/s, meter off", "successful req/s, meter on"]
+    for p in ("p50", "p95", "p99"):
+        header += [f"{p} off", f"{p} on", f"{p} +ms"]
+    rows = []
+    for name, on in runs.items():
+        run = name.removeprefix("OH-on-")
+        if run == name or (off := runs.get(f"OH-off-{run}")) is None:
+            continue
+        row = [run]
+        row += [f"{ok_per_s(r):,.0f}" for r in (off, on)]
+        for p in ("p50", "p95", "p99"):
+            a, b = off["latencyPercentiles"][p], on["latencyPercentiles"][p]
+            row += [ms(a), ms(b), ms(b - a)]
+        rows.append(row)
+    return md_table(header, rows)
 
 
 QUOTA_FIELDS = (
@@ -132,6 +155,7 @@ def summary(res: Path) -> str:
     sections = {
         "Redis bench": redis_summary(res),
         "Api bench": api_summary(res),
+        "Meter overhead": overhead_summary(res),
         "Quota check": quota_summary(res),
         "Race check": race_summary(res),
     }

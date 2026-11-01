@@ -1,4 +1,4 @@
-"""Benchmarks against the compose stack (8 replicas), for docs/benchmarks.md.
+"""Benchmarks against the compose stack (8 replicas, or API_REPLICAS), for docs/benchmarks.md.
 
 With no command, runs the defaults on a grid (full | quick):
   redis bench (store_bench.py, straight against Redis):
@@ -30,10 +30,20 @@ One custom run instead of the defaults:
     uv run scripts/bench_suite.py redis -n 20000 -c 64 --procs 4
     uv run scripts/bench_suite.py redis --op refund --rate 3000 -n 60000
     uv run scripts/bench_suite.py api --route unmetered -q 8000
+    uv run scripts/bench_suite.py api --no-meter -q 1000 -c 50   # vs the same without: meter overhead
     uv run scripts/bench_suite.py api -c 1024 -z 30s --servers granian   # no -q: unthrottled
 
+Meter overhead rate sweep (OH): the metered route with the meter off, then on, at each rate
+(-q, default the grid's 1k-10k | 2k/5k), B4's duration, -c 512. The rate where p99 jumps or
+successful req/s falls behind the target is the max sustainable throughput, per meter setting:
+    uv run scripts/bench_suite.py overhead --servers uvicorn
+    uv run scripts/bench_suite.py overhead -q 3000 4000 5000
+
 Both load generators run inside the compose network (store_bench.py in a one-off api container, oha as
-its own container), so Docker Desktop's port forwarding is never in the path. Output goes to
+its own container), so Docker Desktop's port forwarding is never in the path. oha gets the last
+OHA_CPUS of Docker's CPUs and the stack the rest, so the load generator never takes CPU from what it
+measures; fixed-rate runs (-q) use --latency-correction, so a stall can't hide by delaying sends.
+Output goes to
 bench-results/<timestamp>/: redis/, api/, quota/ and race/ with one JSON per run, named after its flags
 (B2-n5000-c16-procs4, custom-granian-metered-20s-c512-q8000), plus env.txt and summary.md.
 """
@@ -79,6 +89,7 @@ class Grid:
     pause: int  # seconds after each api run
     quota_limit: int  # B7
     race_limits: list[int]  # B8
+    overhead_rates: list[int]  # OH
 
 
 GRIDS = {
@@ -92,14 +103,18 @@ GRIDS = {
         10,
         10000,
         [1000, 5000, 10000],
+        [1000, 2000, 4000, 6000, 8000, 10000],
     ),
-    "quick": Grid([2000, 5000], [1, 4], 2000, 5, "5s", "15s", 3, 2000, [1000]),
+    "quick": Grid(
+        [2000, 5000], [1, 4], 2000, 5, "5s", "15s", 3, 2000, [1000], [2000, 5000]
+    ),
 }
 QUOTA_ORG = "bench-quota"  # B7/B8's own org, so its small limit never throttles B4-B6
 
 OHA_IMAGE = "ghcr.io/hatoo/oha:latest"
 OHA_NAME = f"bench-oha-{os.getpid()}"  # so Ctrl+C can stop the running oha
 OHA_FLAGS = ["--ipv4", "--no-tui", "--output-format", "json"]
+OHA_CPUS = 2  # pinned to the last 2 of Docker's CPUs; the stack gets the rest
 # One-off api container on the compose network, with the current scripts/ mounted.
 IN_API = [
     *"docker compose run --rm --no-deps -T".split(),
@@ -114,9 +129,11 @@ services:
     command: ["granian", "--interface", "asgi", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-ws", "main:app"]
 """
 
+
 # set in main() and setup()
 RES = ROOT / "bench-results"
 NETWORK = ""
+STACK_CPUS = OHA_CPUSET = ""  # e.g. "0-9" and "10-11" on 12 CPUs
 
 
 def sh(*cmd: str, capture: bool = False) -> str:
@@ -144,15 +161,22 @@ def setup(server: str) -> None:
     """(Re)start the api replicas on `server` and wait until the stack is healthy."""
     global NETWORK
     files = ["-f", "compose.yaml"]
+    pin = RES / "cpuset.yaml"
+    services = "".join(
+        f"  {s}:\n    cpuset: {STACK_CPUS}\n" for s in ("api", "nginx", "redis")
+    )
+    pin.write_text(f"services:\n{services}", encoding="utf-8")
+    files += ["-f", str(pin)]
     if server == "granian":
         override = RES / "granian.yaml"
         override.write_text(GRANIAN_OVERRIDE, encoding="utf-8")
         files += ["-f", str(override)]
-    log(f"starting 8 x {server}")
-    sh("docker", "compose", *files, "up", "-d", "--wait")
+    log(f"starting {os.environ.get('API_REPLICAS', '8')} x {server}")
+    # captured: compose progress only shows (via sh's exit message) if a step fails
+    sh("docker", "compose", *files, "up", "-d", "--wait", capture=True)
     # nginx resolves replica IPs once at startup; the second up waits for it to be healthy again
-    sh("docker", "compose", "restart", "nginx")
-    sh("docker", "compose", *files, "up", "-d", "--wait")
+    sh("docker", "compose", "restart", "nginx", capture=True)
+    sh("docker", "compose", *files, "up", "-d", "--wait", capture=True)
     nginx = sh("docker", "compose", "ps", "-q", "nginx", capture=True)
     fmt = "{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}"
     NETWORK = sh("docker", "inspect", "-f", fmt, nginx, capture=True)
@@ -200,10 +224,18 @@ def run_api_bench(
     Returns the run name and oha's report."""
     name = run_name(label, server, route, **kw)
     log(f"{name}: oha {' '.join(flags(**kw))} {ROUTES[route]}")
-    oha = ["docker", "run", "--rm", "--name", OHA_NAME, "--network", NETWORK, OHA_IMAGE]
+    oha = ["docker", "run", "--rm", "--name", OHA_NAME, "--network", NETWORK]
+    oha += ["--cpuset-cpus", OHA_CPUSET, OHA_IMAGE]
+    # fixed rate: time each request from when it was due, not when a stalled worker sent it
+    correction = ["--latency-correction"] if kw.get("q") else []
     url = f"http://nginx{ROUTES[route]}"
     out = sh(
-        *oha, *flags(**kw), *OHA_FLAGS, "-H", f"X-Org-Id: {org}", url, capture=True
+        *oha,
+        *flags(**kw),
+        *OHA_FLAGS,
+        *correction,
+        *("-H", f"X-Org-Id: {org}", url),
+        capture=True,
     )
     save("api", name, out)
     time.sleep(pause)
@@ -218,8 +250,7 @@ def host_redis():
 def on_each_server(servers: list[str], bench: Callable[[str], None]) -> None:
     """Provision the bench org (the api bench's X-Org-Id), then restart the stack on each server
     and run bench(server). Deletes the org's keys afterwards."""
-    r = host_redis()
-    provision(r, ORG)
+    provision(host_redis(), ORG)
     try:
         for server in servers:
             setup(server)
@@ -227,7 +258,8 @@ def on_each_server(servers: list[str], bench: Callable[[str], None]) -> None:
     finally:
         subprocess.run(["docker", "rm", "-f", OHA_NAME], capture_output=True)
         log("deleting bench keys")
-        cleanup(r, ORG)
+        # new connection: setup() may have recreated redis (AOF keeps the keys, not the socket)
+        cleanup(host_redis(), ORG)
 
 
 # defaults
@@ -379,6 +411,7 @@ def record_env() -> None:
     )
     docker = sh("docker", "info", "-f", fmt, capture=True)
     env = f"host: {platform.platform()}, {os.cpu_count()} CPUs\ndocker: {docker}\n"
+    env += f"cpuset: stack {STACK_CPUS}, oha {OHA_CPUSET}\n"
     (RES / "env.txt").write_text(env, encoding="utf-8")
     log(env.replace("\n", "; "))
 
@@ -413,7 +446,17 @@ def parse_args() -> argparse.Namespace:
     ab.add_argument("-q", type=int, help="req/s; unset: unthrottled")
     ab.add_argument("-z", default="20s", help="duration")
     ab.add_argument("-c", type=int, default=512, help="connections")
+    ab.add_argument(
+        "--no-meter",
+        action="store_true",
+        help="replicas run with DISABLE_METER=1: same route, no Redis, for the meter's overhead",
+    )
     add_servers(ab)
+    oh = commands.add_parser(
+        "overhead", help="meter off vs on on the metered route, swept over rates"
+    )
+    oh.add_argument("-q", type=int, nargs="+", help="req/s to sweep; default: grid's")
+    add_servers(oh)
 
     args = p.parse_args()
     args.grid = GRIDS[args.grid]
@@ -446,18 +489,51 @@ def run_custom_redis(args: argparse.Namespace) -> None:
 
 
 def run_custom_api(args: argparse.Namespace) -> None:
+    label = "custom-nometer" if args.no_meter else "custom"
+    # compose.yaml passes it to the replicas; setup()'s `up` recreates them when it changes
+    os.environ["DISABLE_METER"] = "1" if args.no_meter else "0"
+
     def custom(server: str) -> None:
-        run_api_bench("custom", server, args.route, z=args.z, c=args.c, q=args.q)
+        run_api_bench(label, server, args.route, z=args.z, c=args.c, q=args.q)
 
     on_each_server(args.servers, custom)
 
 
-RUNS = {"redis": run_custom_redis, "api": run_custom_api, None: run_defaults}
+def run_overhead(args: argparse.Namespace) -> None:
+    """The metered route with the meter off (DISABLE_METER=1), then on, at each rate. Same route
+    and flags both ways, so the delta is the meter alone. One restart per toggle."""
+    g = args.grid
+    loads = [dict(z=g.api_duration, c=512, q=q) for q in args.q or g.overhead_rates]
+    # Off first, so the stack is left metered. on_each_server's setup() starts it unmetered.
+    os.environ["DISABLE_METER"] = "1"
+
+    def overhead(server: str) -> None:
+        for meter in ("off", "on"):
+            if meter == "on":
+                os.environ["DISABLE_METER"] = "0"
+                setup(server)
+            for kw in loads:
+                run_api_bench(f"OH-{meter}", server, "metered", g.pause, **kw)
+        os.environ["DISABLE_METER"] = "1"  # the next server starts unmetered again
+
+    on_each_server(args.servers, overhead)
+
+
+RUNS = {
+    "redis": run_custom_redis,
+    "api": run_custom_api,
+    "overhead": run_overhead,
+    None: run_defaults,
+}
 
 
 def main() -> None:
-    global RES
+    global RES, STACK_CPUS, OHA_CPUSET
     args = parse_args()
+
+    ncpu = int(sh("docker", "info", "-f", "{{.NCPU}}", capture=True))
+    STACK_CPUS = f"0-{ncpu - OHA_CPUS - 1}"
+    OHA_CPUSET = f"{ncpu - OHA_CPUS}-{ncpu - 1}"
 
     if not sh("docker", "compose", "ps", "-q", "nginx", capture=True):
         sys.exit("stack not running: docker compose up -d --wait")
@@ -469,7 +545,8 @@ def main() -> None:
     # The api image bakes in src/: rebuild so the one-off store_bench.py container and the replicas
     # (recreated by setup()) run the current code.
     log("building api image")
-    sh("docker", "compose", "build", "api")
+    # captured: a failing step (ruff/pytest in the check stage) still prints its log on exit
+    sh("docker", "compose", "build", "api", capture=True)
 
     RES = RES / f"{datetime.now():%Y%m%d-%H%M%S}"
     RES.mkdir(parents=True)
