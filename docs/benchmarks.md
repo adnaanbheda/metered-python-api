@@ -6,7 +6,7 @@ Target from [DESIGN.md](../DESIGN.md): ~2,000 quota operations/second sustained,
 
 ## Environment
 
-Every run shares the same machine, load generator included, so throughput numbers are a floor for this PC, not a property of the design.
+Every run up to [Isolated machines](#isolated-machines-2026-11-01) shares the same machine, load generator included, so throughput numbers are a floor for this PC, not a property of the design.
 
 - CPU: AMD Ryzen 5 5600X, 6 cores / 12 threads
 - OS: Windows 11 Pro, Docker Desktop 29.7.2 (WSL2 VM, 12 CPUs, 16 GB)
@@ -88,3 +88,44 @@ py-spy, one uvicorn replica, 30s, 6 replicas at 5k req/s (~833/replica), meter o
 | Rest | ~150 | uvicorn/FastAPI slower on saturated core |
 
 Redis spends ~32µs per `evalsha`; cost is the Python client. 2 sends (~140µs) stay while reserve/commit are separate scripts.
+
+## Isolated machines (2026-11-01)
+
+Two DigitalOcean droplets on one private network, nothing else on either:
+
+- Stack: 16 vCPU AMD EPYC 9555P, 32 GB, Ubuntu 24.04, Docker 29.9.2; 8 API replicas, nginx, Redis as above
+- Load generator: 8 vCPU, 16 GB, same CPU; oha over `docker -H ssh://`
+
+`API_REPLICAS=8 scripts/bench_remote.sh root@10.132.0.3 10.132.0.2 overhead -q 2000 4000 6000 8000 10000 15000`, same oha flags as the rate sweeps. Run 3 times each for `main` (d2c3785) and `perf/commit-loop` (66e141c), interleaved: `bench-results/20261101-131611`, `-134310`, `-141004` (main), `-132944`, `-135636`, `-142330` (commit loop).
+
+Every rate was held (successful req/s within 0.1% of target), with 0 non-200s and 0 errors across all 144 runs. The ~5–6k meter-on cap above was the workstation, not the stack.
+
+### Meter overhead (`main`, median of 3)
+
+Cells: p50 / p99 ms.
+
+| Rate | uvicorn off | uvicorn on | granian off | granian on |
+| --- | --- | --- | --- | --- |
+| 2k | 0.3 / 0.6 | 0.5 / 1.0 | 0.3 / 0.6 | 0.6 / 3.6 |
+| 4k | 0.3 / 0.6 | 0.5 / 1.2 | 0.4 / 0.6 | 0.7 / 1.3 |
+| 6k | 0.4 / 0.7 | 0.6 / 1.6 | 0.4 / 0.7 | 0.8 / 10.7 |
+| 8k | 0.4 / 0.8 | 0.7 / 2.1 | 0.4 / 0.8 | 0.8 / 1.8 |
+| 10k | 0.4 / 0.9 | 0.8 / 2.1 | 0.5 / 1.0 | 0.9 / 2.2 |
+| 15k | 0.5 / 1.2 | 1.0 / 6.2 | 0.6 / 1.2 | 1.2 / 85.5 |
+
+- uvicorn: meter adds 0.2–0.4ms p50 and 0.4–1.2ms p99 up to 10k, +5ms p99 at 15k. Inside the <10ms budget at every rate.
+- granian on, 15k: p99 swings 8.9–175ms between runs; it's at its knee there.
+- granian on, 6k: p99 ~10ms in all 6 runs, both branches, but not at 4k or 8k, and not with the meter off. Reproducible, not investigated.
+
+### Commit loop A/B (meter on, p99 ms, median of 3)
+
+| Rate | uvicorn main | uvicorn loop | granian main | granian loop |
+| --- | --- | --- | --- | --- |
+| 2k | 1.0 | 1.0 | 3.6 | 3.1 |
+| 4k | 1.2 | 1.2 | 1.3 | 1.3 |
+| 6k | 1.6 | 1.6 | 10.7 | 9.5 |
+| 8k | 2.1 | 1.9 | 1.8 | 1.7 |
+| 10k | 2.1 | 2.0 | 2.2 | 2.1 |
+| 15k | 6.2 (3.8–8.7) | 7.4 (4.6–63.2) | 85.5 (8.9–175) | 14.2 (11.4–112) |
+
+p50 within 0.03ms at every rate. Up to 10k, uvicorn p99 is within 0.2ms; granian's 2k and 6k are 0.5 and 1.2ms lower with the loop, inside their run-to-run spread (6k: 10.6–10.8 vs 9.3–10.6). At 15k the spread is larger than any difference. No measurable gain here: the stack isn't CPU-bound at these rates, and the loop saves client CPU, which only shows under saturation (+2% throughput on the workstation).
