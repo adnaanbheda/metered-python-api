@@ -1,5 +1,7 @@
 # api-metred-quota
 
+[DESIGN.md](DESIGN.md)
+
 ## The problem
 
 Every org gets a monthly allowance per feature: 1,000 container-tracking lookups, 1,000 sailing-schedule lookups, and so on, with heavier requests costing more than one unit. Sounds like a counter. It's a counter that:
@@ -13,7 +15,7 @@ Every org gets a monthly allowance per feature: 1,000 container-tracking lookups
 
 `count += 1` gets you exactly one of those, and only on a quiet day. This repo is the rest.
 
-Per-org, per-feature quota metering for a FastAPI service. Redis + Lua reserve/commit/refund keeps charges atomic across replicas; `X-Request-Id` dedupes retries. Design and trade-offs: [DESIGN.md](DESIGN.md).
+Per-org, per-feature quota metering for a FastAPI service. Redis + Lua reserve/commit/refund keeps charges atomic across replicas; `X-Request-Id` dedupes retries.
 
 ## Run
 
