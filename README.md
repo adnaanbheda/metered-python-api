@@ -2,6 +2,19 @@
 
 Per-org, per-feature quota metering for a FastAPI service. Redis + Lua reserve/commit/refund keeps charges atomic across replicas; `X-Request-Id` dedupes retries. Design and trade-offs: [DESIGN.md](DESIGN.md).
 
+## The problem
+
+Every org gets a monthly allowance per feature: 1,000 container-tracking lookups, 1,000 sailing-schedule lookups, and so on, with heavier requests costing more than one unit. Sounds like a counter. It's a counter that:
+
+- is hit by the same org from many tabs, scripts and that one cron job nobody remembers writing, all at once;
+- lives behind a fleet of replicas, none of which trust each other's arithmetic;
+- must never charge twice when a client retries because its Wi-Fi blinked;
+- must give the unit back when the upstream vendor falls over (not the customer's fault, not their bill);
+- resets on the 1st of the month, ideally without anyone being on call for it;
+- does all this for 5k orgs (50k next year) × 30 features at ~2k ops/s sustained, 10k peak, adding under 10ms.
+
+`count += 1` gets you exactly one of those, and only on a quiet day. This repo is the rest.
+
 ## Run
 
 ```sh
