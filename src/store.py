@@ -147,6 +147,7 @@ class QuotaStore:
 
     async def get_usage(self, org_id: str):
         period, _ = current_period()
+        year, month = map(int, period.split("-"))
         features = [
             f async for f in self.redis.sscan_iter(self.features_key(org_id, period))
         ]
@@ -162,6 +163,8 @@ class QuotaStore:
         return {
             "org_id": org_id,
             "period": period,
+            # Start of next calendar month, UTC.
+            "resets_at": f"{year + month // 12}-{month % 12 + 1:02d}-01T00:00:00Z",
             "features": {
                 f: {
                     "used": int(values[2 * i + 1] or 0),

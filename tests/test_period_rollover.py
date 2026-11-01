@@ -67,6 +67,7 @@ async def test_rollover_starts_a_fresh_counter(client, redis_client, clock):
 
     usage = (await client.get("/usage", headers={"X-Org-Id": ORG})).json()
     assert usage["period"] == "2099-02"
+    assert usage["resets_at"] == "2099-03-01T00:00:00Z"
     assert usage["features"][FEATURE] == {"used": 1, "limit": 2}
 
 
