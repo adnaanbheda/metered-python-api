@@ -13,7 +13,7 @@ Every org gets a monthly allowance per feature: 1,000 container-tracking lookups
 - resets on the 1st of the month, ideally without anyone being on call for it;
 - does all this for 5k orgs (50k next year) × 30 features at ~2k ops/s sustained, 10k peak, adding under 10ms.
 
-`count += 1` gets you exactly one of those, and only on a quiet day. This repo is the rest.
+`count += 1` gets you exactly one of those, and only on a quiet day. This repo is the rest; how and why it's built this way is in [DESIGN.md](DESIGN.md).
 
 ## Run
 
