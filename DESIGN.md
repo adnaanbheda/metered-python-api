@@ -134,41 +134,33 @@ Reservation through request ID, deduplication of charges + reserve / refund work
 
 ## Benchmarking
 
-Results here are on AMD 5600X (6 cores, 12 threads), 32gigs memory. Everything runs in Docker Desktop's VM, so 8 uvicorn replicas, nginx, Redis and the load generator (oha) share the same 12 threads.
+Open loop (`oha -q --latency-correction`) on `/container_tracking`, 512 connections, 20s per rate, meter off vs on. Every run and iteration: [docs/benchmarks.md](docs/benchmarks.md).
 
-1. Middleware overhead
+### Isolated machines
 
-A/B testing with the `DISABLE_METER` flag: `DISABLE_METER=1` removes `MeterMiddleware`, everything else stays identical. Both runs on `/container_tracking` at 1000 req/s, 50 connections, 20s:
-
-| | meter off | meter on | overhead |
-| --- | --- | --- | --- |
-| avg | 1.21ms | 1.84ms | 0.62ms |
-| p50 | 1.15ms | 1.66ms | 0.51ms |
-| p95 | 1.68ms | 2.63ms | 0.95ms |
-| p99 | 2.46ms | 5.01ms | 2.55ms |
-
-Only `reserve` is on the request path; `commit`/`refund` run after the response is sent, so the overhead is about one Redis round trip (~0.6ms).
-
-2. API benchmarking (rate sweep)
-
-`API_REPLICAS=6 uv run scripts/bench_suite.py overhead -q 2000 5000 8000 10000 15000`: meter off vs on, open loop (`oha -q`, `--latency-correction`), 20s per rate, 512 connections, oha pinned to its own 2 CPUs. Successful req/s (p99, end to end; left out past the knee):
+Two DigitalOcean droplets on one private network: stack (16 vCPU AMD EPYC, 8 API replicas, nginx, Redis) and load generator (8 vCPU). 3 runs per rate, [bench_remote.sh](scripts/bench_remote.sh). Cells: p50 / p99 ms, median of 3.
 
 | Rate | uvicorn off | uvicorn on | granian off | granian on |
 | --- | --- | --- | --- | --- |
-| 2k | 1,998 (1.6ms) | 1,997 (7.1ms) | 1,999 (1.9ms) | 1,999 (6.3ms) |
-| 5k | 4,996 (3.3ms) | 4,992 (453ms) | 4,996 (26.9ms) | 4,973 (832ms) |
-| 8k | 7,995 (26.1ms) | 5,057 | 7,988 (33.0ms) | 5,125 |
-| 10k | 9,815 (370ms) | 5,077 | 9,985 (55.9ms) | 5,125 |
-| 15k | 9,925 | 5,111 | 11,935 | 5,127 |
+| 2k | 0.3 / 0.6 | 0.5 / 1.0 | 0.3 / 0.6 | 0.6 / 3.6 |
+| 4k | 0.3 / 0.6 | 0.5 / 1.2 | 0.4 / 0.6 | 0.7 / 1.3 |
+| 6k | 0.4 / 0.7 | 0.6 / 1.6 | 0.4 / 0.7 | 0.8 / 10.7 |
+| 8k | 0.4 / 0.8 | 0.7 / 2.1 | 0.4 / 0.8 | 0.8 / 1.8 |
+| 10k | 0.4 / 0.9 | 0.8 / 2.1 | 0.5 / 1.0 | 0.9 / 2.2 |
+| 15k | 0.5 / 1.2 | 1.0 / 6.2 | 0.6 / 1.2 | 1.2 / 85.5 |
 
-- Overhead meets <10ms below the knee: +0.5ms p50, +5.5ms p99 at 2k/s (granian +4.3ms). Knee with the meter on is 3–4k.
-- Meter on caps at ~5.1k on both servers; meter off reaches ~10k (uvicorn) and ~12k (granian).
-- The cap is replica CPU: ~1.2ms per request with the meter vs ≤0.75ms without. The meter is ~25% of py-spy samples, half of it redis-py; Redis itself spends 31.6µs per `evalsha`.
-- Access logs are off in uvicorn (~12% of replica CPU) and nginx. The metered cap didn't move, so nginx isn't the bottleneck.
-- 6 replicas beat 8 (6 physical cores). Scaling, meter on, unthrottled: 1 → 1,078, 2 → 2,023, 4 → 3,355, 6 → 4,766, 8 → 4,861 req/s; linear to 2, then CPU contention, no errors at any count.
-- uvicorn workers per replica (`WEB_CONCURRENCY`) lose to replicas by 8–14% at equal process count; kept at 1.
+- uvicorn, up to 10k (the brief's peak): meter adds 0.2–0.4ms p50, 0.4–1.2ms p99. At 15k, p99 6.2ms. Under 10ms at every rate.
+- Every rate held (within 0.1% of target), 0 errors across 144 runs. 15k was the highest rate tried; the ceiling is above it, unmeasured.
+- granian, meter on: at its knee at 15k (p99 8.9–175ms between runs), and ~10ms p99 at 6k in every run, unexplained. uvicorn is the server to run.
+- Not covered: Redis in another zone (one more round trip per reserve), long soak runs.
 
-10k req/s with the meter on isn't reachable on this box: it needs ~10 replica cores plus nginx and Redis on their own. Redis alone does 10–12k reserve+commit/s (store bench) and the API tier is stateless (all state in Redis), so it scales out with cores.
+### Workstation
+
+AMD 5600X (6 cores, 12 threads), Docker Desktop: the stack and oha share the same 12 threads, so these caps are this box's CPU, not the stack.
+
+- Overhead at 1k req/s: +0.5ms p50, +2.6ms p99. Only `reserve` is on the request path; `commit`/`refund` run after the response is sent.
+- Meter on caps at ~5.1k req/s (meter off ~10k uvicorn, ~12k granian). The cap is replica CPU: ~1.2ms per request metered vs ≤0.75ms unmetered, see [Profiling](#profiling).
+- 6 replicas (one per physical core) beat 8; one uvicorn worker per replica beats several by 8–14%.
 
 ## Bonus work
 
@@ -182,7 +174,7 @@ Hybrid implementation that can run the middleware work without moving away from 
 - Meter on: 1,108µs CPU/req (~92% of a core); off: 459µs (~38%). Meter adds ~650µs/req.
 - Split: redis-py client ~200µs, socket writes ~140µs (2 sends × ~50µs over Docker VM networking), asyncio timeouts/locks ~75µs, our code ~80µs, uvicorn/FastAPI slowdown on a saturated core ~150µs. (Reason why Rust gateway has 2x throughput, the async python redis client the limiting factor).
 - Redis isn't the cost: ~32µs per `evalsha` server side. The Python client is.
-- 1 core / 1.1ms ≈ 900 req/s per replica; × 6 cores ≈ 5.4k, matching the ~5.1–6k metered cap.
+- 1 core / 1.1ms ≈ 900 req/s per replica; × 6 cores ≈ 5.4k, matching the workstation's ~5.1–6k metered cap. The droplet's 16 vCPUs held 15k.
 - Remaining levers: fewer Redis sends per request (commit batching), or the meter out of Python (Rust gateway).
 
 
