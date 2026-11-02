@@ -1,5 +1,6 @@
 # Quota metered API implemented in Python
 
+This was a live document during development, look for CHOSEN/DEFERRED/REJECTED tags
 ## Context
 Meter users based on organizational/feature limits, enforce these quotas.
 
