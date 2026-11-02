@@ -4,18 +4,35 @@
 
 ## The problem
 
-Every org gets a monthly allowance per feature: 1,000 container-tracking lookups, 1,000 sailing-schedule lookups, and so on, with heavier requests costing more than one unit. Sounds like a counter. It's a counter that:
+This is an assignment that adds quotas to APIs, the quota is per org per operation/endpoint, every org gets a fixed amount of units per operation for a certain amount of time. If the quota is exhausted, the request is denied with a quota exceeded message. The quotas are reset monthly at UTC.
 
-- is hit by the same org from many tabs, scripts and that one cron job nobody remembers writing, all at once;
-- lives behind a fleet of replicas, none of which trust each other's arithmetic;
-- must never charge twice when a client retries because its Wi-Fi blinked;
-- must give the unit back when the upstream vendor falls over (not the customer's fault, not their bill);
-- resets on the 1st of the month, ideally without anyone being on call for it;
-- does all this for 5k orgs (50k next year) × 30 features at ~2k ops/s sustained, 10k peak, adding under 10ms.
+Implemented using FastAPI with Redis as the store with atomicity maintained per request, more information about the context of the key decisions, technical details, concurrency, benchmark numbers at [DESIGN.md](DESIGN.md).
 
-`count += 1` gets you exactly one of those, and only on a quiet day. This repo is the rest.
+## Assignment map
 
-Per-org, per-feature quota metering for a FastAPI service. Redis + Lua reserve/commit/refund keeps charges atomic across replicas; `X-Request-Id` dedupes retries.
+Each ask in the brief, and where it lives.
+
+| Ask | Code | Tests | DESIGN.md |
+|---|---|---|---|
+| Integration shape | Middleware: [meter.py](src/middlewares/meter.py), [identity.py](src/middlewares/identity.py). Consumer routes: [operations.py](src/operations.py) | | [Architecture](DESIGN.md#architecture), [Key Decisions](DESIGN.md#key-decisions) 1 |
+| Concurrent correctness | [reserve.lua](src/lua/reserve.lua): check and charge in one script run, [store.py](src/store.py) | [test_concurrency.py](tests/integration/test_concurrency.py) (nginx + 3 replicas + real Redis) | [Key Decisions](DESIGN.md#key-decisions) 3 |
+| ...demonstrated under load | B8 in [bench_suite.py](scripts/bench_suite.py): 3L+5 requests, 512 in flight, 8 replicas | Exactly L served, Redis and stream agree, all replicas committed | [Testing & validation](DESIGN.md#testing--validation) 8 |
+| State across instances | Redis only (AOF), [compose.yaml](compose.yaml) | [test_stack.py](tests/integration/test_stack.py) | [Architecture](DESIGN.md#architecture), [Correctness](DESIGN.md#correctness--failure-handling) 4 |
+| Batch: all-or-nothing | `POST /batch` in [operations.py](src/operations.py) | `test_batches_race_near_the_limit`, `test_batch_one_unknown_op_fails_and_refunds_all`, `test_mixed_batch_501` | [Key Decisions](DESIGN.md#key-decisions) 6, [Limitations](DESIGN.md#limitations--risks) 2 |
+| Failure & retries | [commit.lua](src/lua/commit.lua), [refund.lua](src/lua/refund.lua), [fingerprint.py](src/utils/fingerprint.py) | [test_idempotency.py](tests/test_idempotency.py), [scenarios/idempotency.md](tests/scenarios/idempotency.md), `test_parallel_failures_all_refunded`, `test_same_request_id_in_parallel_charges_once`, `test_retry_on_another_replica_is_deduped` | [Correctness](DESIGN.md#correctness--failure-handling) 1, 2, 7 |
+| Reset & reporting | Calendar month, UTC: [periods.py](src/utils/periods.py). `GET /usage`: [usage.py](src/usage.py) | [test_period_rollover.py](tests/test_period_rollover.py) | [Architecture](DESIGN.md#architecture) |
+| Single-command bring-up | [compose.yaml](compose.yaml), see [Run](#run) | | |
+| Load-test numbers | [bench_suite.py](scripts/bench_suite.py), [bench_remote.sh](scripts/bench_remote.sh), see [Bench](#bench) | | [Isolated machines](docs/benchmarks.md#isolated-machines-2026-11-01): 2k–15k req/s held on 2 droplets, 0 errors in 144 runs. [Benchmarking](DESIGN.md#benchmarking) |
+| Where it falls over | | | Not reached by 15k req/s on a 16 vCPU stack: uvicorn meter-on p99 6.2ms, inside budget; granian at its knee (p99 85ms). The ~5.1k cap in [Benchmarking](DESIGN.md#benchmarking) was the shared workstation's CPU, not the stack. [Limitations](DESIGN.md#limitations--risks) |
+| 50k-org scale | | | [Future work](DESIGN.md#future-work--scaling) |
+| AI-assisted vs own decisions | | | [Appendix](DESIGN.md#appendix) |
+
+## Quick start
+
+```sh
+docker compose up -d --build --wait   # run: 8 API replicas behind nginx, Redis (AOF), seeded limits
+uv run scripts/bench_suite.py         # benchmark: defaults B1-B8, uvicorn + granian (~15 min)
+```
 
 ## Run
 
