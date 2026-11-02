@@ -23,7 +23,7 @@ Each ask in the brief, and where it lives.
 | Reset & reporting | Calendar month, UTC: [periods.py](src/utils/periods.py). `GET /usage`: [usage.py](src/usage.py) | [test_period_rollover.py](tests/test_period_rollover.py) | [Architecture](DESIGN.md#architecture) |
 | Single-command bring-up | [compose.yaml](compose.yaml), see [Run](#run) | | |
 | Load-test numbers | [bench_suite.py](scripts/bench_suite.py), [bench_remote.sh](scripts/bench_remote.sh), see [Bench](#bench) | | [Isolated machines](docs/benchmarks.md#isolated-machines-2026-11-01): 2k–15k req/s held on 2 droplets, 0 errors in 144 runs. [Benchmarking](DESIGN.md#benchmarking) |
-| Where it falls over | | | Not reached by 15k req/s on a 16 vCPU stack: uvicorn meter-on p99 6.2ms, inside budget; granian at its knee (p99 85ms). The ~5.1k cap in [Benchmarking](DESIGN.md#benchmarking) was the shared workstation's CPU, not the stack. [Limitations](DESIGN.md#limitations--risks) |
+| Where it falls over | | | [Limitations](DESIGN.md#limitations--risks) |
 | 50k-org scale | | | [Future work](DESIGN.md#future-work--scaling) |
 | AI-assisted vs own decisions | | | [Appendix](DESIGN.md#appendix) |
 
