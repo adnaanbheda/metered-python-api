@@ -33,7 +33,9 @@ KEY   res:{acme}:9f1c2e7a4b3d4e8f9a0b1c2d3e4f5a6b      (type: hash, TTL: 300s)
   cost   1                   → units charged, used for refunds
 
 No free usage for the same requestID retried because the same request parameters are required, valid for 5 minutes if the hash check fails, the request is denied to prevent idempotent-key reuse. Also, fingerprinting and storing a hash for 5 minutes isn't heavy on redis. (Max memory added by fingerprinting, 15K/s(4.5 million): 72mb, 15K/minute (75K): ~17 MB).
-Bounded memory usage given 10K/s with 5mins TTL.
+Bounded memory: ~224 B per request ID for 5 min, so ~670 MB of reservations at the 10K/s peak and ~1.2 GB in total at 50k orgs ([Memory sizing](#memory-sizing)).
+
+### API usage
 
 ## Requirements
 
@@ -176,6 +178,22 @@ AMD 5600X (6 cores, 12 threads), Docker Desktop: the stack and oha share the sam
 - Overhead at 1k req/s: +0.5ms p50, +2.6ms p99. Only `reserve` is on the request path; `commit`/`refund` run after the response is sent.
 - Meter on caps at ~5.1k req/s (meter off ~10k uvicorn, ~12k granian). The cap is replica CPU: ~1.2ms per request metered vs ≤0.75ms unmetered, see [Profiling](#profiling).
 - 6 replicas (one per physical core) beat 8; one uvicorn worker per replica beats several by 8–14%.
+
+### Memory sizing
+
+| Rate | Live keys (×300s) | Reservations | ↳ Fingerprint | Stream | Total (5k orgs) | Total (50k orgs) | Stream buffer before trim |
+|---|---|---|---|---|---|---|---|
+| 10K/min (~167/s) | 50K | 11 MB | 0.8 MB | 84 MB | ~136 MB | ~505 MB | ~100 min |
+| 15K/min (250/s) | 75K | 17 MB | 1.2 MB | 84 MB | ~142 MB | ~511 MB | ~67 min |
+| 10K/s | 3M | 670 MB | 48 MB | 84 MB | ~800 MB | ~1.17 GB | ~100 s |
+| 15K/s | 4.5M | 1.0 GB | 72 MB | 84 MB | ~1.13 GB | ~1.5 GB | ~67 s |
+
+**Per-key sizes**
+- Reservation key `res:{org}:{id}` (hash: state, fp, cost; 300s TTL): ~224 B with a 32-char ID, ~320 B with a 128-char ID
+- Fingerprint field (16 hex chars): ~16 B per key
+- Usage stream entry: ~88 B (capped at 1M entries)
+- Quota counters: ~8.6 KB per org (30 features × limit and usage keys)
+
 
 ## Bonus work
 
