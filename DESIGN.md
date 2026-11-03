@@ -23,6 +23,7 @@ reserve when the request is received, refund if the request fails.
 
 Concerning idempotency, we do Reservation through the request ID, deduplication of charges + reserve / refund work through this request ID, we echo request IDs back in case of retries to nudge the client to reuse them. No reservations when vendor/data source is failing. 
 Committed / Charged request ID never calls the vendor again, TTL for every request ID 5 minutes.
+It's not free usage though because the same request is required and is valid for 5 minutes if the request changes, fingerprinting and storing a hash for 5 minutes isn't heavy on redis. (Max memory added by fingerprinting, 15K/s(4.5 million): 72mb, 15K/minute (75K): ~17 MB).
 We maintain fingerprinting of requests so a single requestID can't be repeated again until the TTL.
 Bounded memory usage given 10K/s with 5mins TTL. Fingerprinting the request ID so that different body with the request ID is rejected.
 
