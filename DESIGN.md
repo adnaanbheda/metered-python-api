@@ -1,25 +1,30 @@
 # Quota metered API implemented in Python
 
-This was a live document during development, look for CHOSEN/DEFERRED/REJECTED tags
+This was a live document during development, look for CHOSEN/DEFERRED/REJECTED tags.
+
 ## Context
 Meter users based on organizational/feature limits, enforce these quotas.
 
 Per feature operation lookups i.e. container-tracking 1000, sailing-schedule lookup 1000, a single request can also consume multiple units based on how complicated it is.
 
-Concurrency has to be something to be taken care of, an org can call multiple APIs at the same time and their quotas can be exhausted because of this. On top of that we are assuming multiple instances of the service which can also simultaneously consume the units.
+Concurrency needs to be proven with correctness under load, an org can call multiple APIs at the same time and their quotas can be exhausted because of this. On top of that we are assuming multiple instances of the service which can also simultaneously consume the units.
 
 ## Architecture
 
 API with middlewares that reach redis to make quota checks
 
-Redis houses quota limits, i.e. quota:{org}:feature:limit:period (mutation discouraged)
-Redis houses another counter that stores the usage key with a period, i.e. orgID:feature:usage:period
-Reset will change the period and therefore the keys, new month's renewal explicitly handled by another billing/renewal api/store (DEFERRED, additional Postgres required)
+Redis houses quota limits, keys such as quota:{org}:feature:limit:period (mutation discouraged)
+Redis houses another counter that stores the usage key with a period, key: orgID:feature:usage:period
+Reset will change the period and therefore the keys, we maintain reset by picking the current_period. The new month's renewal explicitly handled by another billing/renewal api/store (DEFERRED, additional Postgres required), that'd constitute more work beyond the main pointers of the assignment.
 
+We're going for a Charge first then refund model here for the quota implementation.
 Atomicity with reserve/refund model with Redis's lua level scripting
 reserve when the request is received, refund if the request fails.
 
-Reservation through request ID, deduplication of charges + reserve / refund work through this request ID, we echo request IDs back in case of retries to nudge the client to reuse them. No reservations when vendor is failing. Committed / Charged request ID never calls the vendor again, TTL for every request ID 5 minutes. Bounded memory usage given 10K/s with 5mins TTL. Fingerprinting the request ID so that different body with the request ID is rejected.
+Concerning idempotency, we do Reservation through the request ID, deduplication of charges + reserve / refund work through this request ID, we echo request IDs back in case of retries to nudge the client to reuse them. No reservations when vendor/data source is failing. 
+Committed / Charged request ID never calls the vendor again, TTL for every request ID 5 minutes.
+We maintain fingerprinting of requests so a single requestID can't be repeated again until the TTL.
+Bounded memory usage given 10K/s with 5mins TTL. Fingerprinting the request ID so that different body with the request ID is rejected.
 
 ## Requirements
 
