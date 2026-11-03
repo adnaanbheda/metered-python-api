@@ -43,54 +43,61 @@ Bounded memory: ~224 B per request ID for 5 min, so ~670 MB of reservations at t
 2. Traffic: ~2000 quota operations/second sustained, peaking at 10,000/second.
 3. Horizontally scaled fleet
 4. Reset of the quota.
-5. Quota API that returns available quota and usage.
+5. Quota API that returns available quota and usage with reset timing.
 
 ## Goals
 
 1. Latency: <10ms per operation.
     a. Correction: Overhead should be <10ms per operation. i.e. Redis reserve/refund, atomicity check round trip.
+2. Correctness under stressload (10-15k/second) guaranteed.
+3. Predictable reset.
+4. Never overserve.
+5. Charge exactly once.
+6. Consistent batch execution.
 
 ## Key Decisions
 
 1. Middleware/Decorator pattern
 2. Redis/MemCached
-    a. Redis clear choice since we can script at the Redis level for atomic checks
+    a. Redis clear choice since we can script at the Redis level for atomic checks (CHOSEN).
 3. Atomicity maintained at the DB level. (CHOSEN: one Lua script, `reserve.lua`, does the dedupe, limit check, charge and reservation write in one round trip. Redis runs a script to completion, so no other instance's command can land in between, and a rejected request writes nothing.)
-4. Balance stored separate or same as Redis? (DEFERRED, see Future work 1)
+4. Balance stored separate or same as Redis? (seperate stoage DEFERRED, see Future work 1)
     a. Postgres stores the organization's limit
-5. Redis cluster necessary if scale's required, bucket keys to nodes based on hashing
+5. Redis cluster necessary if scale's required, bucket keys to nodes based on hashing (DEFERRED, high priority for Future work)
 6. Batches are all-or-nothing and single feature (CHOSEN). Cost is the op count, reserved as one unit: one reservation key, one stream event with the total cost. A batch spanning features returns `501 mixed_batch_unsupported` (DEFERRED, see Future work 3).
     a. Single feature keeps `reserve.lua`/`commit.lua`/`refund.lua` on one usage key, the same scripts as a single request.
-    b. Atomicity holds for single-feature batches: `reserve.lua` checks and charges the whole batch cost in one script run, so no other instance lands in between. Parallel batches near the limit never go over it and a rejected batch charges nothing (BA11, `test_batches_race_near_the_limit`, re-run across replicas in `tests/integration`).
+    b. Atomicity holds for single-feature batches: `reserve.lua` checks.
+    c. Batch checks at the middleware level, and then atomicity at the internal DB level.
 
 ## Correctness / failure handling
 
 1. Failed requests shouldn't count towards the quota
 2. Retries shouldn't count as double exhaustion of quota.
-    a. What if the retry arrives while the first request is still in progress? due to client side timeouts, slow vendors can make this problem more prominent
+    a. What if the retry arrives while the first request is still in progress? due to client side timeouts, slow vendors can make this problem more prominent.
 3. Writing/Reading to/from postgres on every charge not applicable, performance problem since the target is <10ms (REJECTED: latency).
 4. Redis durability important in case of failures since Redis going down means that the last state of usage is the source of truth, otherwise no quota! (CHOSEN)
-    a. appendonly, appendfsync everysec, maxmemory-policy noeviction
+    a. Flags for Redis: appendonly, appendfsync everysec, maxmemory-policy noeviction
 5. Recovery path if we use postgres + Redis (deferred)
     a. if Redis wiped, snapshots of usage logs give us the exact rebuild, but it can also be stale.
 
-6. Reserve then refund is redundant when 404 entries exist but behaviourally it makes sense since production environments will tend to have valid scenarios more often than not. Reserve/Refund is cheaper to always do due to Redis's fast memory storage.
+6. Reserve then refund is redundant when 404 entries exist but behaviourally it makes sense since production environments will tend to have valid scenarios more often than not. Reserve/Refund is cheaper to always do due to Redis's performant access.
 
 7. Commit/refund runs after the response is sent (CHOSEN: latency). The client never waits on the settle round trip, but for a short window after it receives the response, Redis still shows the reservation as `reserved`.
-    a. A retry with the same request id in that window gets `409 request_in_progress` (or `422 request_id_reused` if the body differs) instead of `already_processed`.
+    a. A retry with the same request id in that transmission to client window gets `409 request_in_progress` (or `422 request_id_reused` if the body differs) instead of `already_processed`.
     b. Success: usage was already charged at reserve, only the usage stream event (written by commit) lags. Failure: usage stays charged until the refund lands, so it briefly over-reports. Quota is never over-granted, since reserve is what holds the units.
-    c. Tests must account for it, see `tests/README.md`.
+    c. Refund in case of server errors, not client errors.
+    d. Store Cache / replay response bodies for 5 minutes in the requestID key if client transmission / response wasn't succesfuly sent. [Future work](DESIGN.md#future-work--scaling) 2
+    e. Tests must account for it, see `tests/README.md`.
 
 ## Testing & validation
 
-1. Integration tests, including Redis spinup
+1. Integration tests, including Redis spinup, benchmarking, correctness guarantee under load.
 2. Quota exhaustion validation, negative quota should be absolutely prohibited.
-3. Reset updates the quotas
+3. Reset updates the quotas.
 4. ab to stress load the system, checking if there's a more apt tool for python development.
-5. oha seems to be a good alternative. (CHOSEN)
-6. Benchmark results cap at 4.5Kops/s for unmetered routes as of now, but benchmarks can be limited in queuing requests, adding multi process benchmarking as well as trying granian to reach peak 10K ops/s
+    a. oha seems to be a good alternative. (CHOSEN)
 7. httpx bottleneck @ 200ops/s, oha gives real benchmark results
-8. Concurrency proof under load: B8 in `scripts/bench_suite.py` (CHOSEN). The assignment asks for "a concurrency test that proves quota is never over-served, not just one that passes with no contention", and for concurrent correctness to be demonstrated under load. In-process tests can't race (Limitations 9a), so this runs against the real stack.
+8. Concurrency proof under load: B8 in `scripts/bench_suite.py`. The assignment asks for "a concurrency test that proves quota is never over-served, not just one that passes with no contention", and for concurrent correctness to be demonstrated under load. In-process tests can't race (Limitations 9a), so this runs against the real stack.
     a. Setup: one org with limit L (1000, 5000, 10000). oha sends 3L+5 requests unthrottled, 512 in flight, nginx round-robins them across 8 replicas sharing one Redis. Every replica races for the last units, the assignment's "500 left, 500 units at once across instances", oversubscribed 3x.
     b. Passes only if: exactly L got 200 and the rest 429, the Redis usage counter is L, the usage stream charged exactly L units (only this run's events), and there are exactly L reservation keys, all `committed`. Over-serving shows up as 200s > L or usage > L, a lost or double refund as usage ≠ 200s.
     c. Reserve/commit/refund each leave a trace on the reservation key: `reserve.lua` writes one only for a granted request (a 429 writes nothing), `commit.lua` marks it `committed`, `refund.lua` deletes it. So {committed: L} means L reserves, L commits, no refunds, nothing left `reserved`.
@@ -110,12 +117,13 @@ Bounded memory: ~224 B per request ID for 5 min, so ~670 MB of reservations at t
 
 1. Response validation, i.e. bad responses from vendors should they use up the quota?
 2. Request requires N units, org has M < N: all-or-nothing, the batch gets 429 and nothing is charged. Partial request fulfilment dropped: ops are read-only so running the first M would be safe, but billing gets complicated (reserve has to return a grant, callers resend skipped ops under a new id, mixed features need prefix rules).
-3. Do monthly quotas transfer ?
+3. Monthly quotas if not exhausted, don't transfer/renew into the next month.
 4. If opted for org:feature:limit:period and org:feature:usage:period
-    a. if the renewal job hasn't run yet, at 00:00:01 the API can say that there's no quota
+    a. if the renewal job hasn't run yet i.e. new period keys aren't created for orgs, at 00:00:01 the API can say that there's no quota.
 5. <10ms overhead realistically difficult on 10/15K requests per second.
-6. If network failure causes a request to not be received by the client, they remain charged and don't get refunded.
-7. nit: Ideally all code should be native to Python but since Redis scripting requires Lua, we have some source files that have lua scripting here. Can use something like this: https://github.com/IgnaceMaes/redis-lua-py, not a popular package, but their README shows our use case explicitly, wary: more dependencies.
+6. If network failure causes a request to not be received by the client, they remain charged and don't get refunded. ([Future work](DESIGN.md#future-work--scaling) 2)
+7. nit: Ideally all code should be native to Python but since Redis scripting requires Lua, we have some source files that have lua scripting here. Can use something like this: https://github.com/IgnaceMaes/redis-lua-py, not a popular package, but their README shows our use case explicitly.
+(wary of more dependencies. REJECTED).
 8. Local Redis required to run pytest, bummer but because of the lua scripts this adds some friction to the dev loop. Fixtures can work but they would be limiting as well.
 9. We can use fakeredis to do this, it has a lua interpreter! (CHOSEN)
     a. Note: in-process can't test concurrency. fakeredis never yields to the event loop and httpx `ASGITransport` runs each request to completion, so 50 gathered requests run one at a time (measured: peak 1 live reservation). Races pass for free. Concurrency tests (`tests/integration/test_concurrency.py`) run only in Docker: nginx + 3 replicas + real Redis.
@@ -128,8 +136,13 @@ Bounded memory: ~224 B per request ID for 5 min, so ~670 MB of reservations at t
 (What changes at 10× scale.)
 
 1. Postgres deployment that houses usage logs, billing and entitlements control for an organization.
-    a. houses key limits per feature that get transposed to Redis for a period
-2. If the client never received a successful response due to network failure, we charge them regardless. To solve this, we can store cached responses for 60 seconds in Redis (compressed with zstd/gzip). Overkill for v1.
+    a. houses key limits per feature that get transposed to Redis for a billing period.
+2. If the client never received a successful response due to network failure, we charge them regardless. To solve this, we can store cached responses for 300 seconds in Redis (compressed with zstd/gzip). Overkill for v1.
+    a. Fix: on commit, store the compressed response in the reservation hash (same TTL, deleted on refund); a retry with a matching fingerprint gets it replayed, no charge, no vendor call.
+    b. Cap at ~2 KB; larger responses keep today's `409`.
+    c. Cost: ~0.6 GB at 2K/s, ~3 GB at the 10K/s peak. No latency hit, since the write happens after the response is sent.
+    d. Cheap first step: include the original commit time in the `409` body.
+
 3. Multi-feature batches: one multi-key reserve over every feature's limit/usage key.
     a. `reserve.lua` checks every feature before writing anything, so one feature over its limit (or unprovisioned) charges none of them, then `INCRBY`s each. Reservation hash keeps a `cost:<feature>` field per feature.
     b. `commit.lua` writes one stream event per feature, so billing stays per feature. `refund.lua` `DECRBY`s each usage key from its `cost:<feature>`.
@@ -138,15 +151,17 @@ Bounded memory: ~224 B per request ID for 5 min, so ~670 MB of reservations at t
 
 ## Testing environment
 
-1. VSCode tasks: Spin up service / Redis instance, Seed mock data, reset mock data
-2. Scenarios for important components: idempotency, batch
+1. VSCode tasks: Spin up local (non-containerised) service / Redis instance, Seed mock data, reset mock data.
+2. Scenarios for important components: idempotency, batch, concurrency under benchmarking.
 3. Manual checklist (basic metering, concurrency, idempotency, batch): [docs/manual-scenarios.md](docs/manual-scenarios.md)
-4. One shot docker compose up: API, Redis, health checks, seed data
-5. Separate assignment of cpu cores to oha, to make sure the other services aren't bottlenecked by it
+4. One shot docker compose up: API, Redis, health checks, seed data 
+6. Load generator scripts: [bench_suite.py](scripts/bench_suite.py) runs B1–B8 against the running stack (`docker compose up -d --wait`) :
+        uv run scripts/bench_suite.py --grid quick
 
 ## Technical details
 1. uv/ruff tooling with venv
 2. FastAPI with uvicorn/granian (benchmarking to pick one)
+    a. Uvicorn picked, predictable behaviour under load (P99 of granian drastically higher).
 3. docker compose to horizontally scale
 
 ## Benchmarking
@@ -170,6 +185,11 @@ Two DigitalOcean droplets on one private network: stack (16 vCPU AMD EPYC, 8 API
 - Every rate held (within 0.1% of target), 0 errors across 144 runs. 15k was the highest rate tried; the ceiling is above it, unmeasured.
 - granian, meter on: at its knee at 15k (p99 8.9–175ms between runs), and ~10ms p99 at 6k in every run, unexplained. uvicorn is the server to run.
 - Not covered: Redis in another zone (one more round trip per reserve), long soak runs.
+
+Claims met:
+- **Throughput:** 10K/s (the brief's peak) and 15K/s both held within 0.1% of target, with 0 errors in 144 runs, across 8 replicas sharing one Redis.
+- **Latency:** meter overhead stays under the 10 ms goal: +0.4 / +1.2 ms p50 / p99 at 10K/s, and +0.5 / +5.0 ms at 15K/s.
+- **Concurrency:** at 10K/s and 15K/s every replica reserves against the same Redis keys concurrently, with no errors or lost charges. The over-serving proof is B8 ([Testing & validation](#testing--validation) 8).
 
 ### Workstation
 
@@ -201,6 +221,7 @@ Hybrid implementation that can run the middleware work without moving away from 
 
 1. Given this, we can make the already negligible overhead reduce even more and increase throughput. 
 2. Rust based gateway that calls the reserve/commit/refund and identity work and then processes the request.
+3. Pending: benchmark and stress load correctness under this implementation.
 
 ## Profiling
 
@@ -208,9 +229,9 @@ Hybrid implementation that can run the middleware work without moving away from 
 - Split: redis-py client ~200µs, socket writes ~140µs (2 sends × ~50µs over Docker VM networking), asyncio timeouts/locks ~75µs, our code ~80µs, uvicorn/FastAPI slowdown on a saturated core ~150µs. (Reason why Rust gateway has 2x throughput, the async python redis client the limiting factor).
 - Redis isn't the cost: ~32µs per `evalsha` server side. The Python client is.
 - 1 core / 1.1ms ≈ 900 req/s per replica; × 6 cores ≈ 5.4k, matching the workstation's ~5.1–6k metered cap. The droplet's 16 vCPUs held 15k.
-- Remaining levers: fewer Redis sends per request (commit batching), or the meter out of Python (Rust gateway).
-
-
+- Remaining levers for implementation: fewer Redis sends per request (commit batching), or the meter out of Python (Rust gateway).
+    a. commit loop batching no performance gain (REJECTED).
+    b. Rust gateway implementation (not merged, separate branch, bonus/experimental work).
 
 ## Appendix
 
@@ -221,12 +242,12 @@ Design and key decisions are mine, the following implementations were assisted b
 The commit history is separated by chunks of code, v1 will mark usable code.
 
 1. AI assisted parts
-    a. Reserve / Refund lua scripting code.
-    b. Seeding data, mock scenarios scaffolding code, i.e. orgs, features, limits, manual-scenarios.
-    c. SHA256 fingerprinting to match valid retries.
-    d. Router that shows all the Redis keys for each org
-    e. Infra scaffolding i.e. docker compose yaml
-    f. Swagger changes
-    g. README document with a quickstart added
+    a. Lua scripts for Reserve / Commit / Refund code.
+    b. Seed data and mock scaffolding: orgs, features, limits, manual scenarios.    c. SHA256 fingerprinting to match valid retries.
+    c. Code: SHA-256 request fingerprinting for retry matching.
+    d. Router that shows all the Redis keys for each org, debugging.
+    e.  Infra: docker compose, loag generator scripts.
+    f. Swagger changes.
+    g. README document with a quickstart added.
     h. Benchmarking scaffolding, design and tools decided by me i.e. oha, host/docker performance differences, latency correction, fixed qps (if any).
-    i. Sanity checking, documentation checks
+    i. Sanity and documentation checks.
