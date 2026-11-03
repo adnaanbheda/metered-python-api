@@ -22,10 +22,18 @@ Atomicity with reserve/refund model with Redis's lua level scripting
 reserve when the request is received, refund if the request fails.
 
 Concerning idempotency, we do Reservation through the request ID, deduplication of charges + reserve / refund work through this request ID, we echo request IDs back in case of retries to nudge the client to reuse them. No reservations when vendor/data source is failing. 
+
 Committed / Charged request ID never calls the vendor again, TTL for every request ID 5 minutes.
-It's not free usage though because the same request is required and is valid for 5 minutes if the request changes, fingerprinting and storing a hash for 5 minutes isn't heavy on redis. (Max memory added by fingerprinting, 15K/s(4.5 million): 72mb, 15K/minute (75K): ~17 MB).
-We maintain fingerprinting of requests so a single requestID can't be repeated again until the TTL.
-Bounded memory usage given 10K/s with 5mins TTL. Fingerprinting the request ID so that different body with the request ID is rejected.
+Fingerprinting the request's information, keeping a hash stored to maintain request information.
+Example:
+
+KEY   res:{acme}:9f1c2e7a4b3d4e8f9a0b1c2d3e4f5a6b      (type: hash, TTL: 300s)
+  state  reserved            → becomes "committed" on success; the key is deleted on refund
+  fp     51c2c34544410c53    → the fingerprint
+  cost   1                   → units charged, used for refunds
+
+No free usage for the same requestID retried because the same request parameters are required, valid for 5 minutes if the hash check fails, the request is denied to prevent idempotent-key reuse. Also, fingerprinting and storing a hash for 5 minutes isn't heavy on redis. (Max memory added by fingerprinting, 15K/s(4.5 million): 72mb, 15K/minute (75K): ~17 MB).
+Bounded memory usage given 10K/s with 5mins TTL.
 
 ## Requirements
 
